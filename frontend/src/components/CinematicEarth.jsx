@@ -309,6 +309,7 @@ export default function CinematicEarth() {
     }
     
     const baseDate = new Date();
+    const fixedGmst = satellite.gstime(baseDate); // Freeze Earth's rotation for a closed loop
     const periodMins = Math.ceil((2 * Math.PI) / lockedSatellite.satrec.no);
     const steps = 180; // High resolution
     const stepSize = periodMins / steps;
@@ -321,7 +322,8 @@ export default function CinematicEarth() {
       try {
         const pv = satellite.propagate(lockedSatellite.satrec, d);
         if (pv.position) {
-          const gd = satellite.eciToGeodetic(pv.position, satellite.gstime(d));
+          // Use fixedGmst so the orbit forms a perfect closed hoop in ECEF space
+          const gd = satellite.eciToGeodetic(pv.position, fixedGmst);
           const lat = satellite.degreesLat(gd.latitude);
           const lng = satellite.degreesLong(gd.longitude);
           const alt = gd.height / 6371.0;
@@ -466,7 +468,7 @@ export default function CinematicEarth() {
       // Preallocate space for 250 points max
       orbitGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(250 * 3), 3));
       orbitGeo.setDrawRange(0, 0);
-      const orbitLine = new THREE.Line(orbitGeo, orbitMat);
+      const orbitLine = new THREE.LineLoop(orbitGeo, orbitMat);
       orbitLine.visible = false;
       orbitLineMeshRef.current = orbitLine;
       scene.add(orbitLine);
