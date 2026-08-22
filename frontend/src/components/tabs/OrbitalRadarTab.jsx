@@ -1,29 +1,54 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import CinematicEarth from '../CinematicEarth';
 
 export default function OrbitalRadarTab() {
+  const [satCount, setSatCount] = useState(0);
+  const [threatCount, setThreatCount] = useState(0);
+
+  useEffect(() => {
+    // Fetch live stats
+    fetch('http://localhost:8000/api/v1/globe-data')
+      .then(r => r.json())
+      .then(data => setSatCount(data.items?.length || 0))
+      .catch(() => {});
+    
+    fetch('http://localhost:8000/api/v1/conjunctions?page=1&size=1')
+      .then(r => r.json())
+      .then(data => setThreatCount(data.total || 0))
+      .catch(() => {});
+  }, []);
+
   return (
-    <div className="absolute inset-0 w-full h-full bg-[#050505]">
+    <div className="absolute inset-0 w-full h-full bg-[var(--color-void)]">
       <CinematicEarth />
       
-      {/* Minimal Overlay */}
-      <div className="absolute top-6 left-6 pointer-events-none z-10">
-        <div className="bg-slate-900/90 backdrop-blur-md border border-cyan-500/30 p-4 rounded shadow-[0_0_15px_rgba(34,211,238,0.15)]">
-          <h2 className="text-white font-bold tracking-wider uppercase font-mono mb-2">SYSTEM STATUS</h2>
-          <div className="flex flex-col space-y-1">
-            <div className="flex justify-between items-center space-x-6">
-              <span className="text-slate-300 font-mono text-xs uppercase tracking-wider">RADAR SENSOR</span>
-              <span className="text-emerald-400 font-mono font-semibold">ACTIVE</span>
-            </div>
-            <div className="flex justify-between items-center space-x-6">
-              <span className="text-slate-300 font-mono text-xs uppercase tracking-wider">TRACKING MODE</span>
-              <span className="text-cyan-400 font-mono font-semibold">L.E.O.</span>
-            </div>
-            <div className="flex justify-between items-center space-x-6 pt-2 border-t border-slate-700/50 mt-2">
-              <span className="text-slate-300 font-mono text-xs uppercase tracking-wider">OBJECTS</span>
-              <span className="text-amber-400 font-mono font-semibold">500+</span>
-            </div>
+      {/* Vignette overlay for cinematic depth */}
+      <div className="vignette-overlay" />
+      
+      {/* Scan line effect */}
+      <div className="scan-line" />
+
+      {/* Bottom-left status badge — minimal, non-intrusive */}
+      <div className="absolute bottom-6 left-6 z-10 pointer-events-none animate-fadeInUp" style={{ animationDelay: '0.5s', animationFillMode: 'backwards' }}>
+        <div className="glass-panel px-4 py-3 flex items-center space-x-6">
+          <div className="flex items-center space-x-2">
+            <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_rgba(34,211,238,0.8)]"></div>
+            <span className="text-slate-400 font-mono text-[10px] uppercase tracking-widest">TRACKING</span>
+            <span className="text-cyan-300 font-mono text-sm font-bold tabular-nums">{satCount.toLocaleString()}</span>
           </div>
+          <div className="w-px h-4 bg-slate-700" />
+          <div className="flex items-center space-x-2">
+            <div className="w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_6px_rgba(255,0,85,0.8)] animate-pulse"></div>
+            <span className="text-slate-400 font-mono text-[10px] uppercase tracking-widest">CONJUNCTIONS</span>
+            <span className="text-red-400 font-mono text-sm font-bold tabular-nums">{threatCount}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom-right classification tag */}
+      <div className="absolute bottom-6 right-6 z-10 pointer-events-none animate-fadeInUp" style={{ animationDelay: '0.8s', animationFillMode: 'backwards' }}>
+        <div className="text-slate-600 font-mono text-[9px] uppercase tracking-[0.3em]">
+          LEO • MEO • GEO FULL SPECTRUM
         </div>
       </div>
     </div>

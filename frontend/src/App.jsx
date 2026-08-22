@@ -11,7 +11,6 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('radar');
   const [selectedConjunctionId, setSelectedConjunctionId] = useState(null);
   
-  // Function to switch tabs programmatically (e.g. jumping from Threat Matrix to B-Plane)
   const navigateTo = (tabId) => {
     setActiveTab(tabId);
   };
@@ -46,9 +45,9 @@ export default function App() {
   };
 
   return (
-    <div className="w-screen h-screen bg-slate-950 overflow-hidden flex flex-col font-mono text-white selection:bg-cyan-500/30">
+    <div className="w-screen h-screen bg-[var(--color-void)] overflow-hidden flex flex-col text-white selection:bg-cyan-500/30">
       <TopNav activeTab={activeTab} setActiveTab={setActiveTab} />
-      <div className="flex-1 relative">
+      <div className="flex-1 relative" key={activeTab}>
         {renderTab()}
       </div>
     </div>

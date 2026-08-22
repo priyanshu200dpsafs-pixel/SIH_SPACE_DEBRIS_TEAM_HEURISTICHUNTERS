@@ -41,13 +41,13 @@ export default function CAMSolverTab({ selectedConjunctionId, navigateTo }) {
 
   if (!selectedConjunctionId) {
     return (
-      <div className="w-full h-full flex items-center justify-center bg-[#030712]">
-        <div className="bg-slate-900/90 border border-amber-500/30 p-8 rounded text-center">
+      <div className="w-full h-full flex items-center justify-center bg-[var(--color-void)] tab-content">
+        <div className="glass-panel border-amber-500/20 p-8 text-center animate-fadeInUp">
           <h2 className="text-amber-400 font-mono text-xl font-bold tracking-widest mb-4">NO TARGET SELECTED</h2>
           <p className="text-slate-400 font-mono mb-6">Select a conjunction from the Threat Matrix to plan an avoidance maneuver.</p>
           <button 
             onClick={() => navigateTo('matrix')}
-            className="bg-cyan-900/40 hover:bg-cyan-800/60 border border-cyan-500/50 text-cyan-300 px-6 py-2 font-mono tracking-wider transition-colors rounded"
+            className="glass-panel hover:bg-cyan-500/10 text-cyan-300 px-6 py-2 font-mono text-[11px] tracking-wider transition-all duration-300"
           >
             GO TO THREAT MATRIX
           </button>
@@ -57,7 +57,7 @@ export default function CAMSolverTab({ selectedConjunctionId, navigateTo }) {
   }
 
   return (
-    <div className="w-full h-full p-6 bg-[#030712] overflow-auto flex flex-col items-center">
+    <div className="w-full h-full p-6 bg-[var(--color-void)] overflow-auto flex flex-col items-center tab-content">
       <div className="w-full max-w-5xl">
         
         {/* Header */}
@@ -77,7 +77,7 @@ export default function CAMSolverTab({ selectedConjunctionId, navigateTo }) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           
           {/* Input Panel */}
-          <div className="bg-slate-900/90 backdrop-blur-md border border-cyan-500/30 p-6 rounded shadow-[0_0_15px_rgba(34,211,238,0.1)] flex flex-col justify-between">
+          <div className="glass-panel-bright p-6 flex flex-col justify-between animate-fadeInUp">
             <div>
               <h3 className="text-white font-bold tracking-wider uppercase font-mono mb-6 border-b border-slate-700/50 pb-2">MANEUVER PARAMETERS</h3>
               
@@ -117,7 +117,7 @@ export default function CAMSolverTab({ selectedConjunctionId, navigateTo }) {
           </div>
 
           {/* Results Panel */}
-          <div className="bg-slate-900/90 backdrop-blur-md border border-cyan-500/30 p-6 rounded shadow-[0_0_15px_rgba(34,211,238,0.1)] flex flex-col">
+          <div className="glass-panel-bright p-6 flex flex-col animate-fadeInUp" style={{animationDelay:'0.15s',animationFillMode:'backwards'}}>
             <h3 className="text-white font-bold tracking-wider uppercase font-mono mb-6 border-b border-slate-700/50 pb-2">BURN REQUIREMENTS</h3>
             
             {!results ? (

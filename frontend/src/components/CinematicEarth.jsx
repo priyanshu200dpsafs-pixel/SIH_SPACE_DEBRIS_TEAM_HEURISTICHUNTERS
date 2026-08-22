@@ -17,7 +17,6 @@ export default function CinematicEarth() {
   const [searchResults, setSearchResults] = useState([]);
   const [lockedSatellite, setLockedSatellite] = useState(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-
   const [highRiskNames, setHighRiskNames] = useState(new Set());
 
   // 1. Fetch Conjunctions
@@ -80,12 +79,19 @@ export default function CinematicEarth() {
     setSearchQuery('');
     setIsDropdownOpen(false);
     if (globeEl.current) {
-      // Disable auto-rotate so parallax doesn't confuse the view
       globeEl.current.controls().autoRotate = false;
-      
-      // Ensure camera is always outside the satellite's orbit (especially for GEO)
       const cameraAlt = Math.max(sat.alt + 1.5, 2.5);
       globeEl.current.pointOfView({ lat: sat.lat, lng: sat.lng, altitude: cameraAlt }, 1200);
+    }
+  };
+
+  const unlockSatellite = () => {
+    setLockedSatellite(null);
+    setHtmlElementsData([]);
+    setPathsData([]);
+    if (globeEl.current) {
+      globeEl.current.controls().autoRotate = true;
+      globeEl.current.pointOfView({ altitude: 2.5 }, 1000);
     }
   };
 
@@ -115,7 +121,7 @@ export default function CinematicEarth() {
             sat.velocity = Math.sqrt(
               Math.pow(velocityEci.x, 2) + Math.pow(velocityEci.y, 2) + Math.pow(velocityEci.z, 2)
             );
-            sat.eci = positionEci; // Cache ECI for Euclidean math
+            sat.eci = positionEci;
             sat.isHighRisk = highRiskNames.has(sat.name);
             needsUpdate = true;
             
@@ -129,15 +135,14 @@ export default function CinematicEarth() {
       if (needsUpdate) {
         setPointsData([...satDataRef.current]);
         
-        // Rings
+        // Rings for high-risk
         const rings = satDataRef.current.filter(s => s.isHighRisk).map(s => ({
-          lat: s.lat, lng: s.lng, maxR: 5, propagationSpeed: 2, repeatPeriod: 1000
+          lat: s.lat, lng: s.lng, maxR: 4, propagationSpeed: 2, repeatPeriod: 1200
         }));
         setRingsData(rings);
 
-        // Advanced Vectors & Reticle for Locked Sat
+        // Locked satellite tracking
         if (lockedSatUpdated) {
-          // 1. Euclidean Proximity calculations (kept for HUD)
           const distances = satDataRef.current
             .filter(s => s.norad_id !== lockedSatUpdated.norad_id && s.eci && lockedSatUpdated.eci)
             .map(s => {
@@ -149,8 +154,6 @@ export default function CinematicEarth() {
             })
             .sort((a, b) => a.dist - b.dist)
             .slice(0, 5);
-
-          // Proximity vectors (arcs/spokes) have been removed based on user request.
 
           setHtmlElementsData([lockedSatUpdated]);
           setLockedSatellite({ ...lockedSatUpdated, nearest: distances });
@@ -172,10 +175,9 @@ export default function CinematicEarth() {
     }
     const pathCoords = [];
     const baseDate = new Date();
-    // Calculate orbital period in minutes (no = mean motion in rad/min)
     const periodMins = Math.ceil((2 * Math.PI) / lockedSatellite.satrec.no);
-    const steps = Math.min(periodMins, 360); // Cap at 360 steps to avoid freezing
-    const stepSize = periodMins / steps; // minutes per step
+    const steps = Math.min(periodMins, 360);
+    const stepSize = periodMins / steps;
 
     for (let i = 0; i <= steps; i++) {
       const d = new Date(baseDate.getTime() + i * stepSize * 60000);
@@ -203,14 +205,31 @@ export default function CinematicEarth() {
   useEffect(() => {
     if (globeEl.current) {
       globeEl.current.controls().autoRotate = true;
-      globeEl.current.controls().autoRotateSpeed = 0.5;
+      globeEl.current.controls().autoRotateSpeed = 0.35;
       globeEl.current.controls().enableZoom = true;
+      globeEl.current.controls().zoomSpeed = 0.8;
+      globeEl.current.controls().enableDamping = true;
+      globeEl.current.controls().dampingFactor = 0.1;
       globeEl.current.pointOfView({ altitude: 2.5 });
+
+      // Enhance the scene
+      const scene = globeEl.current.scene();
+      if (scene) {
+        // Add subtle ambient light for depth
+        const ambientLight = new THREE.AmbientLight(0x1a2a4a, 0.3);
+        scene.add(ambientLight);
+      }
     }
   }, []);
 
+  // Memoize Three.js geometries/materials
+  const satGeometry = useMemo(() => new THREE.SphereGeometry(1, 10, 10), []);
+  const normalMat = useMemo(() => new THREE.MeshBasicMaterial({ color: '#00d4ff', transparent: true, opacity: 0.7 }), []);
+  const riskMat = useMemo(() => new THREE.MeshBasicMaterial({ color: '#ff0055' }), []);
+  const issMat = useMemo(() => new THREE.MeshBasicMaterial({ color: '#fbbf24' }), []);
+
   return (
-    <div className="relative w-full h-full bg-[#030712] overflow-hidden">
+    <div className="relative w-full h-full bg-[var(--color-void)] overflow-hidden">
       <Globe
         ref={globeEl}
         width={dimensions.width}
@@ -219,28 +238,27 @@ export default function CinematicEarth() {
         bumpImageUrl="//unpkg.com/three-globe/example/img/earth-topology.png"
         backgroundImageUrl="//unpkg.com/three-globe/example/img/night-sky.png"
         atmosphereColor="#00d4ff"
-        atmosphereAltitude={0.18}
+        atmosphereAltitude={0.25}
         
         objectsData={pointsData}
         objectLat="lat"
         objectLng="lng"
         objectAltitude="alt"
         objectThreeObject={d => {
-          // Scale size up for high altitude objects so they remain visible from far away
           const scale = Math.max(1, d.alt * 0.3);
-          const size = (d.isHighRisk ? 0.035 : 0.012) * scale;
-          const color = d.isHighRisk ? '#ff0055' : '#00ffff';
-          return new THREE.Mesh(
-            new THREE.SphereGeometry(size, 12, 12),
-            new THREE.MeshBasicMaterial({ color })
-          );
+          const isISS = d.name === 'ISS (ZARYA)';
+          const size = isISS ? 0.06 : (d.isHighRisk ? 0.03 : 0.01) * scale;
+          const mat = isISS ? issMat : (d.isHighRisk ? riskMat : normalMat);
+          const mesh = new THREE.Mesh(satGeometry, mat);
+          mesh.scale.set(size, size, size);
+          return mesh;
         }}
         onObjectClick={lockOnSatellite}
         
         ringsData={ringsData}
         ringLat="lat"
         ringLng="lng"
-        ringColor={() => '#ff0055'}
+        ringColor={() => t => `rgba(255, 0, 85, ${1 - t})`}
         ringMaxRadius="maxR"
         ringPropagationSpeed="propagationSpeed"
         ringRepeatPeriod="repeatPeriod"
@@ -252,8 +270,9 @@ export default function CinematicEarth() {
         pathPointLat={p => p[0]}
         pathPointLng={p => p[1]}
         pathPointAlt={p => p[2]}
-        pathColor={() => 'rgba(0, 212, 255, 0.4)'}
+        pathColor={() => t => `rgba(34, 211, 238, ${1 - t * 0.7})`}
         pathResolution={4}
+        pathStroke={1.5}
 
         htmlElementsData={htmlElementsData}
         htmlLat="lat"
@@ -265,13 +284,19 @@ export default function CinematicEarth() {
           el.style.pointerEvents = 'none';
           el.innerHTML = `
             <div style="transform: translate(-50%, -50%);">
-              <svg width="60" height="60" viewBox="0 0 40 40">
-                <circle cx="20" cy="20" r="15" fill="none" stroke="#00ffff" stroke-width="1.5" stroke-dasharray="4 2"/>
-                <line x1="20" y1="0" x2="20" y2="8" stroke="#00ffff" stroke-width="2"/>
-                <line x1="20" y1="32" x2="20" y2="40" stroke="#00ffff" stroke-width="2"/>
-                <line x1="0" y1="20" x2="8" y2="20" stroke="#00ffff" stroke-width="2"/>
-                <line x1="32" y1="20" x2="40" y2="20" stroke="#00ffff" stroke-width="2"/>
-                <circle cx="20" cy="20" r="2" fill="#ff0055"/>
+              <svg width="70" height="70" viewBox="0 0 40 40" style="animation: reticleSpin 8s linear infinite;">
+                <circle cx="20" cy="20" r="17" fill="none" stroke="rgba(34,211,238,0.6)" stroke-width="0.8" stroke-dasharray="3 3"/>
+                <circle cx="20" cy="20" r="12" fill="none" stroke="rgba(34,211,238,0.3)" stroke-width="0.5"/>
+              </svg>
+              <svg width="70" height="70" viewBox="0 0 40 40" style="position:absolute;top:0;left:0;">
+                <line x1="20" y1="2" x2="20" y2="10" stroke="#22d3ee" stroke-width="1.5"/>
+                <line x1="20" y1="30" x2="20" y2="38" stroke="#22d3ee" stroke-width="1.5"/>
+                <line x1="2" y1="20" x2="10" y2="20" stroke="#22d3ee" stroke-width="1.5"/>
+                <line x1="30" y1="20" x2="38" y2="20" stroke="#22d3ee" stroke-width="1.5"/>
+                <circle cx="20" cy="20" r="2" fill="#ff0055">
+                  <animate attributeName="r" values="2;3;2" dur="1.5s" repeatCount="indefinite"/>
+                  <animate attributeName="opacity" values="1;0.5;1" dur="1.5s" repeatCount="indefinite"/>
+                </circle>
               </svg>
             </div>
           `;
@@ -279,38 +304,39 @@ export default function CinematicEarth() {
         }}
       />
 
-      {/* SEARCH BAR OVERLAY */}
+      {/* SEARCH BAR — Top-left, refined */}
       <div className="absolute top-6 left-6 z-50 w-80">
         <div className="relative">
           <input 
             type="text" 
-            placeholder="SEARCH SAT OR NORAD ID..."
+            placeholder="Search satellite or NORAD ID..."
             value={searchQuery}
             onChange={(e) => {
               setSearchQuery(e.target.value);
               setIsDropdownOpen(true);
             }}
             onFocus={() => setIsDropdownOpen(true)}
-            className="w-full bg-slate-950/80 backdrop-blur-md border border-cyan-500/50 text-cyan-300 font-mono text-sm px-4 py-3 rounded focus:outline-none focus:border-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.2)]"
+            className="w-full glass-panel text-cyan-300 font-mono text-xs px-4 py-2.5 rounded-md focus:outline-none focus:border-cyan-400/60 transition-all duration-300 placeholder:text-slate-600"
+            style={{ borderColor: searchQuery ? 'rgba(34,211,238,0.5)' : undefined }}
           />
-          <div className="absolute right-3 top-3 pointer-events-none text-cyan-500">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <div className="absolute right-3 top-2.5 pointer-events-none text-cyan-500/50">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           </div>
         </div>
 
         {isDropdownOpen && searchResults.length > 0 && (
-          <div className="mt-2 bg-slate-950/90 backdrop-blur-md border border-cyan-500/30 rounded overflow-hidden shadow-[0_0_20px_rgba(34,211,238,0.2)]">
-            {searchResults.map(sat => (
+          <div className="mt-1.5 glass-panel-bright overflow-hidden animate-slideDown">
+            {searchResults.map((sat, i) => (
               <div 
                 key={sat.norad_id}
                 onClick={() => lockOnSatellite(sat)}
-                className="px-4 py-3 font-mono text-sm cursor-pointer hover:bg-cyan-900/40 border-b border-slate-800 transition-colors"
+                className="px-4 py-2.5 font-mono text-xs cursor-pointer hover:bg-cyan-500/10 border-b border-white/[0.03] transition-all duration-200"
+                style={{ animation: `staggerFadeIn 0.3s ease-out ${i * 0.05}s backwards` }}
               >
-                <div className="text-white font-bold flex justify-between">
-                  <span>{sat.name}</span>
-                  <span className="text-slate-500 text-[10px]">ID: {sat.norad_id}</span>
+                <div className="flex justify-between items-center">
+                  <span className="text-white font-medium">{sat.name}</span>
+                  <span className="text-slate-600 text-[10px] tabular-nums">{sat.norad_id}</span>
                 </div>
-                <div className="text-slate-400 text-[10px] mt-1 truncate">TLE EPOCH: {sat.epoch}</div>
               </div>
             ))}
           </div>
@@ -319,56 +345,82 @@ export default function CinematicEarth() {
 
       {/* TACTICAL TELEMETRY HUD */}
       {lockedSatellite && (
-        <div className="absolute top-6 right-6 pointer-events-none z-50">
-          <div className="bg-slate-950/85 backdrop-blur-md border border-cyan-500/50 p-6 rounded shadow-[0_0_25px_rgba(34,211,238,0.2)] min-w-[320px]">
-            <div className="flex justify-between items-start mb-4 border-b border-cyan-500/30 pb-2">
+        <div className="absolute top-6 right-6 z-50 w-[340px] animate-slideUp">
+          <div className="glass-panel-bright p-5">
+            {/* Header */}
+            <div className="flex justify-between items-start mb-4 pb-3 border-b border-white/[0.06]">
               <div>
-                <div className="flex items-center space-x-2 mb-1">
-                  <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
-                  <span className="text-red-500 font-mono text-[10px] uppercase font-bold tracking-widest">TARGET LOCKED</span>
+                <div className="flex items-center space-x-2 mb-1.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(255,0,85,0.8)]">
+                    <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping"></div>
+                  </div>
+                  <span className="text-red-400 font-mono text-[9px] uppercase font-bold tracking-[0.2em]">TARGET LOCKED</span>
                 </div>
-                <h2 className="text-white font-bold tracking-wider uppercase font-mono text-xl">{lockedSatellite.name}</h2>
-                <div className="text-cyan-400 font-mono text-xs mt-1">NORAD ID: {lockedSatellite.norad_id}</div>
-                <div className="text-slate-400 font-mono text-[10px] mt-1 tracking-widest">DATA EPOCH: {lockedSatellite.epoch}</div>
+                <h2 className="text-white font-bold tracking-wider uppercase text-lg leading-tight">{lockedSatellite.name}</h2>
+                <div className="text-cyan-400/70 font-mono text-[10px] mt-1 tracking-wider">NORAD {lockedSatellite.norad_id}</div>
               </div>
               <button 
-                onClick={() => setLockedSatellite(null)} 
-                className="pointer-events-auto text-slate-500 hover:text-white transition-colors text-xl font-bold px-2"
+                onClick={unlockSatellite} 
+                className="text-slate-600 hover:text-white transition-colors text-lg font-light px-1 hover:bg-white/5 rounded"
               >
-                &times;
+                ✕
               </button>
             </div>
             
-            <div className="grid grid-cols-2 gap-4 font-mono mb-4 border-b border-slate-800 pb-4">
+            {/* Telemetry Grid */}
+            <div className="grid grid-cols-2 gap-3 mb-4 pb-4 border-b border-white/[0.04]">
               <div>
-                <div className="text-slate-400 text-[10px] uppercase tracking-widest">ALTITUDE</div>
-                <div className="text-cyan-100 text-lg font-bold">{(lockedSatellite.alt * 6371).toFixed(1)} <span className="text-slate-500 text-sm">km</span></div>
+                <div className="text-slate-500 text-[9px] uppercase tracking-[0.15em] mb-1">ALTITUDE</div>
+                <div className="text-cyan-100 text-lg font-bold tabular-nums">
+                  {(lockedSatellite.alt * 6371).toFixed(1)} 
+                  <span className="text-slate-500 text-xs font-normal ml-1">km</span>
+                </div>
               </div>
               <div>
-                <div className="text-slate-400 text-[10px] uppercase tracking-widest">VELOCITY</div>
-                <div className="text-cyan-100 text-lg font-bold">{lockedSatellite.velocity?.toFixed(2)} <span className="text-slate-500 text-sm">km/s</span></div>
+                <div className="text-slate-500 text-[9px] uppercase tracking-[0.15em] mb-1">VELOCITY</div>
+                <div className="text-cyan-100 text-lg font-bold tabular-nums">
+                  {lockedSatellite.velocity?.toFixed(2)} 
+                  <span className="text-slate-500 text-xs font-normal ml-1">km/s</span>
+                </div>
+              </div>
+              <div>
+                <div className="text-slate-500 text-[9px] uppercase tracking-[0.15em] mb-1">LATITUDE</div>
+                <div className="text-slate-300 text-sm tabular-nums">{lockedSatellite.lat?.toFixed(4)}°</div>
+              </div>
+              <div>
+                <div className="text-slate-500 text-[9px] uppercase tracking-[0.15em] mb-1">LONGITUDE</div>
+                <div className="text-slate-300 text-sm tabular-nums">{lockedSatellite.lng?.toFixed(4)}°</div>
               </div>
             </div>
 
+            {/* Nearest Neighbors */}
             <div>
-              <div className="text-slate-400 text-[10px] uppercase tracking-widest mb-2">NEAREST NEIGHBORS (EUCLIDEAN DIST)</div>
+              <div className="text-slate-500 text-[9px] uppercase tracking-[0.15em] mb-2">PROXIMITY CONTACTS</div>
               {lockedSatellite.nearest && lockedSatellite.nearest.length > 0 ? (
-                <div className="flex flex-col space-y-2">
+                <div className="flex flex-col space-y-1.5">
                   {lockedSatellite.nearest.map((n, i) => {
-                    let dColor = "text-cyan-400";
-                    if (n.dist <= 200) dColor = "text-red-500 font-bold animate-pulse";
-                    else if (n.dist <= 1000) dColor = "text-amber-400";
+                    let barColor = 'bg-cyan-500/30';
+                    let textColor = 'text-cyan-400';
+                    if (n.dist <= 200) { barColor = 'bg-red-500/30'; textColor = 'text-red-400 font-bold'; }
+                    else if (n.dist <= 1000) { barColor = 'bg-amber-500/30'; textColor = 'text-amber-400'; }
                     
                     return (
-                      <div key={i} className="flex justify-between items-center text-xs font-mono bg-slate-900/50 p-2 rounded border border-white/5">
-                        <span className="text-slate-300 truncate w-32">{n.target.name}</span>
-                        <span className={`${dColor}`}>{n.dist.toFixed(1)} km</span>
+                      <div 
+                        key={i} 
+                        className="flex items-center text-[11px] font-mono bg-white/[0.02] rounded overflow-hidden"
+                        style={{ animation: `staggerFadeIn 0.3s ease-out ${i * 0.08}s backwards` }}
+                      >
+                        <div className={`w-1 self-stretch ${barColor}`} />
+                        <div className="flex justify-between items-center w-full px-2.5 py-1.5">
+                          <span className="text-slate-400 truncate max-w-[160px]">{n.target.name}</span>
+                          <span className={textColor}>{n.dist.toFixed(1)} km</span>
+                        </div>
                       </div>
                     );
                   })}
                 </div>
               ) : (
-                <div className="text-slate-500 text-xs font-mono">CALCULATING...</div>
+                <div className="text-slate-600 text-[10px] font-mono animate-pulse">SCANNING...</div>
               )}
             </div>
           </div>

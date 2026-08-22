@@ -1,5 +1,64 @@
 import React, { useState, useEffect } from 'react';
 
+function GaugeRing({ value, max, label, unit, color, description, severity }) {
+  const pct = Math.min(value / max, 1);
+  const circumference = 2 * Math.PI * 54;
+  const dashOffset = circumference * (1 - pct);
+
+  return (
+    <div className="glass-panel p-8 flex flex-col items-center text-center relative overflow-hidden group hover:border-white/10 transition-all duration-500">
+      {/* Subtle background glow */}
+      <div 
+        className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700"
+        style={{ background: `radial-gradient(circle at center, ${color}08 0%, transparent 70%)` }}
+      />
+      
+      {/* Gauge SVG */}
+      <div className="relative w-36 h-36 mb-5">
+        <svg viewBox="0 0 120 120" className="w-full h-full -rotate-90">
+          {/* Background ring */}
+          <circle cx="60" cy="60" r="54" fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth="6" />
+          {/* Value ring */}
+          <circle 
+            cx="60" cy="60" r="54" fill="none" 
+            stroke={color} strokeWidth="6" 
+            strokeLinecap="round"
+            strokeDasharray={circumference}
+            strokeDashoffset={dashOffset}
+            className="transition-all duration-1000 ease-out"
+            style={{ filter: `drop-shadow(0 0 6px ${color}80)` }}
+          />
+        </svg>
+        {/* Center value */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <div className="text-3xl font-bold tabular-nums" style={{ color }}>{value.toFixed(1)}</div>
+          <div className="text-slate-500 text-[10px] uppercase tracking-wider mt-0.5">{unit}</div>
+        </div>
+      </div>
+
+      {/* Label */}
+      <div className="text-slate-400 font-mono text-[10px] uppercase tracking-[0.15em] mb-2">{label}</div>
+      
+      {/* Severity badge */}
+      <div 
+        className="text-[9px] font-bold uppercase tracking-widest px-3 py-1 rounded-sm border mb-4"
+        style={{ 
+          color, 
+          borderColor: `${color}40`,
+          backgroundColor: `${color}10`
+        }}
+      >
+        {severity}
+      </div>
+
+      {/* Description */}
+      <div className="text-slate-600 text-[10px] font-mono leading-relaxed pt-3 border-t border-white/[0.04] w-full">
+        {description}
+      </div>
+    </div>
+  );
+}
+
 export default function SpaceWeatherTab() {
   const [weather, setWeather] = useState(null);
 
@@ -10,52 +69,71 @@ export default function SpaceWeatherTab() {
       .catch(err => console.error(err));
   }, []);
 
+  const getF107Severity = (val) => {
+    if (val >= 200) return { text: 'EXTREME', color: '#ef4444' };
+    if (val >= 150) return { text: 'ELEVATED', color: '#f59e0b' };
+    if (val >= 100) return { text: 'MODERATE', color: '#22d3ee' };
+    return { text: 'QUIET', color: '#10b981' };
+  };
+
+  const getApSeverity = (val) => {
+    if (val >= 50) return { text: 'STORM', color: '#ef4444' };
+    if (val >= 20) return { text: 'ACTIVE', color: '#f59e0b' };
+    if (val >= 7) return { text: 'UNSETTLED', color: '#22d3ee' };
+    return { text: 'QUIET', color: '#10b981' };
+  };
+
   return (
-    <div className="w-full h-full p-6 bg-[#030712] overflow-auto flex flex-col items-center justify-center">
-      <div className="w-full max-w-4xl bg-slate-900/90 backdrop-blur-md border border-cyan-500/30 p-8 rounded shadow-[0_0_20px_rgba(34,211,238,0.1)]">
-        
-        <div className="flex justify-between items-end border-b border-cyan-500/30 pb-4 mb-8">
+    <div className="w-full h-full p-6 bg-[var(--color-void)] overflow-auto flex flex-col items-center justify-center tab-content">
+      <div className="w-full max-w-3xl">
+        {/* Header */}
+        <div className="flex justify-between items-end mb-6 animate-fadeInUp">
           <div>
-            <h2 className="text-2xl font-bold text-white tracking-wider font-mono">SOLAR WEATHER TELEMETRY</h2>
-            <div className="text-sm text-slate-400 font-mono mt-1">
-              SOURCE: NOAA SPACE WEATHER PREDICTION CENTER (SWPC)
+            <h2 className="text-2xl font-bold text-white tracking-wider">SOLAR WEATHER</h2>
+            <div className="text-slate-500 font-mono text-[10px] tracking-widest mt-1">
+              SOURCE: NOAA SWPC • REAL-TIME TELEMETRY
             </div>
           </div>
           <div className="flex items-center space-x-2">
-            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></div>
-            <span className="text-emerald-400 font-mono text-xs uppercase tracking-wider font-bold">LIVE FEED</span>
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(16,185,129,0.8)] animate-pulse"></div>
+            <span className="text-emerald-400 font-mono text-[10px] uppercase tracking-wider font-bold">LIVE</span>
           </div>
         </div>
 
         {!weather ? (
-          <div className="text-cyan-500 font-mono animate-pulse text-center py-12">Establishing downlink...</div>
+          <div className="glass-panel p-16 text-center">
+            <div className="text-cyan-500/60 font-mono animate-pulse">Establishing downlink...</div>
+          </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            
-            <div className="bg-slate-950/80 border border-slate-700/50 p-6 rounded flex flex-col items-center text-center shadow-[inset_0_0_20px_rgba(0,0,0,0.5)] relative overflow-hidden">
-              <div className="absolute top-0 right-0 p-2 opacity-20">
-                <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#eab308" strokeWidth="1"><circle cx="12" cy="12" r="5"/><path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
-              </div>
-              <div className="text-slate-400 font-mono text-xs uppercase tracking-wider mb-2">SOLAR RADIO FLUX</div>
-              <div className="text-5xl font-bold text-amber-400 font-mono mb-2">{weather.f107.toFixed(1)}</div>
-              <div className="text-amber-500/80 font-mono text-sm">F10.7 (sfu)</div>
-              <div className="mt-4 pt-4 border-t border-slate-800 w-full text-xs text-slate-500 font-mono">
-                Drives upper atmosphere heating & expansion.
-              </div>
-            </div>
-
-            <div className="bg-slate-950/80 border border-slate-700/50 p-6 rounded flex flex-col items-center text-center shadow-[inset_0_0_20px_rgba(0,0,0,0.5)] relative overflow-hidden">
-              <div className="absolute top-0 right-0 p-2 opacity-20">
-                <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" strokeWidth="1"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-              </div>
-              <div className="text-slate-400 font-mono text-xs uppercase tracking-wider mb-2">GEOMAGNETIC ACTIVITY</div>
-              <div className="text-5xl font-bold text-cyan-400 font-mono mb-2">{weather.ap.toFixed(1)}</div>
-              <div className="text-cyan-500/80 font-mono text-sm">Planetary A-index (Ap)</div>
-              <div className="mt-4 pt-4 border-t border-slate-800 w-full text-xs text-slate-500 font-mono">
-                Proxy for geomagnetic storm induced drag.
-              </div>
-            </div>
-
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 animate-fadeInUp" style={{ animationDelay: '0.2s', animationFillMode: 'backwards' }}>
+            {(() => {
+              const f107s = getF107Severity(weather.f107);
+              return (
+                <GaugeRing
+                  value={weather.f107}
+                  max={300}
+                  label="SOLAR RADIO FLUX"
+                  unit="F10.7 (SFU)"
+                  color={f107s.color}
+                  severity={f107s.text}
+                  description="Drives upper atmosphere heating & expansion. Higher values increase drag on LEO objects."
+                />
+              );
+            })()}
+            {(() => {
+              const aps = getApSeverity(weather.ap);
+              return (
+                <GaugeRing
+                  value={weather.ap}
+                  max={100}
+                  label="GEOMAGNETIC ACTIVITY"
+                  unit="Planetary Ap"
+                  color={aps.color}
+                  severity={aps.text}
+                  description="Proxy for geomagnetic storm activity. Storm conditions cause rapid orbital decay in LEO."
+                />
+              );
+            })()}
           </div>
         )}
       </div>

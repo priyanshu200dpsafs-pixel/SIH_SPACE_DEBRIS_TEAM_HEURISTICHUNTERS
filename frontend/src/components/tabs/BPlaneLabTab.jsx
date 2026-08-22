@@ -14,13 +14,13 @@ export default function BPlaneLabTab({ selectedConjunctionId, navigateTo }) {
 
   if (!selectedConjunctionId) {
     return (
-      <div className="w-full h-full flex items-center justify-center bg-[#030712]">
-        <div className="bg-slate-900/90 border border-amber-500/30 p-8 rounded text-center">
+      <div className="w-full h-full flex items-center justify-center bg-[var(--color-void)] tab-content">
+        <div className="glass-panel border-amber-500/20 p-8 text-center animate-fadeInUp">
           <h2 className="text-amber-400 font-mono text-xl font-bold tracking-widest mb-4">NO TARGET SELECTED</h2>
           <p className="text-slate-400 font-mono mb-6">Select a conjunction from the Threat Matrix to analyze its B-Plane geometry.</p>
           <button 
             onClick={() => navigateTo('matrix')}
-            className="bg-cyan-900/40 hover:bg-cyan-800/60 border border-cyan-500/50 text-cyan-300 px-6 py-2 font-mono tracking-wider transition-colors rounded"
+            className="glass-panel hover:bg-cyan-500/10 text-cyan-300 px-6 py-2 font-mono text-[11px] tracking-wider transition-all duration-300"
           >
             GO TO THREAT MATRIX
           </button>
@@ -31,7 +31,7 @@ export default function BPlaneLabTab({ selectedConjunctionId, navigateTo }) {
 
   if (!conjunction) {
     return (
-      <div className="w-full h-full flex items-center justify-center bg-[#030712]">
+      <div className="w-full h-full flex items-center justify-center bg-[var(--color-void)]">
         <div className="text-cyan-500 font-mono animate-pulse">Loading geometric data...</div>
       </div>
     );
@@ -50,8 +50,8 @@ export default function BPlaneLabTab({ selectedConjunctionId, navigateTo }) {
   const secY = center;
 
   return (
-    <div className="w-full h-full p-6 bg-[#030712] overflow-auto flex flex-col items-center">
-      <div className="w-full max-w-4xl bg-slate-900/90 backdrop-blur-md border border-cyan-500/30 rounded p-6 shadow-[0_0_20px_rgba(34,211,238,0.1)]">
+    <div className="w-full h-full p-6 bg-[var(--color-void)] overflow-auto flex flex-col items-center tab-content">
+      <div className="w-full max-w-4xl glass-panel-bright p-6 animate-fadeInUp">
         
         {/* Header */}
         <div className="flex justify-between items-start border-b border-cyan-500/30 pb-4 mb-6">

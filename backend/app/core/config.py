@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite+aiosqlite:///space_debris.db"
     
     # CORS Config
-    BACKEND_CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5173"
+    BACKEND_CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5173,http://localhost:5174"
     
     # App Settings
     REFRESH_INTERVAL_HOURS: int = 4
