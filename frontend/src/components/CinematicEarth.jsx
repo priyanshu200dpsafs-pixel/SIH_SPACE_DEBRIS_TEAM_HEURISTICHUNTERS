@@ -211,7 +211,7 @@ export default function CinematicEarth() {
               const alt = gd.height / 6371.0;
               
               const phi = (90 - lat) * (Math.PI / 180);
-              const theta = (lng + 180) * (Math.PI / 180);
+              const theta = (90 - lng) * (Math.PI / 180);
               const r = GLOBE_RADIUS * (1 + alt);
               
               positions[idx++] = r * Math.sin(phi) * Math.cos(theta);
@@ -254,7 +254,7 @@ export default function CinematicEarth() {
           // Update Custom Altitude Line for Locked Satellite
           if (altLineMeshRef.current) {
             const phi = (90 - lockedSatUpdated.lat) * (Math.PI / 180);
-            const theta = (lockedSatUpdated.lng + 180) * (Math.PI / 180);
+            const theta = (90 - lockedSatUpdated.lng) * (Math.PI / 180);
             
             const r_ground = GLOBE_RADIUS;
             const r_sat = GLOBE_RADIUS * (1 + lockedSatUpdated.alt);
@@ -328,9 +328,9 @@ export default function CinematicEarth() {
           const lng = satellite.degreesLong(gd.longitude);
           const alt = gd.height / 6371.0;
           
-          // Pure Cartesian conversion (immune to date line wrapping issues)
+          // Pure Cartesian conversion (matches react-globe.gl spherical coordinate space)
           const phi = (90 - lat) * (Math.PI / 180);
-          const theta = (lng + 180) * (Math.PI / 180);
+          const theta = (90 - lng) * (Math.PI / 180);
           const r = GLOBE_RADIUS * (1 + alt);
           
           positions[idx++] = r * Math.sin(phi) * Math.cos(theta); // x
