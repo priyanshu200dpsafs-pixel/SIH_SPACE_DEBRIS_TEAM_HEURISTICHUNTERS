@@ -16,7 +16,6 @@ export default function CinematicEarth() {
   const swarmPointsRef = useRef(null);
   const altLineMeshRef = useRef(null);
   const orbitLineMeshRef = useRef(null);
-  const customLayerGroupRef = useRef(new THREE.Group());
 
   // Hover & Interaction Refs
   const hoveredThreatRef = useRef(null);
@@ -456,7 +455,7 @@ export default function CinematicEarth() {
       const altLine = new THREE.Line(altGeo, altMat);
       altLine.visible = false;
       altLineMeshRef.current = altLine;
-      customLayerGroupRef.current.add(altLine);
+      scene.add(altLine);
 
       // Create Orbit Line (Pure Cartesian)
       const orbitMat = new THREE.LineBasicMaterial({
@@ -472,7 +471,7 @@ export default function CinematicEarth() {
       const orbitLine = new THREE.LineLoop(orbitGeo, orbitMat);
       orbitLine.visible = false;
       orbitLineMeshRef.current = orbitLine;
-      customLayerGroupRef.current.add(orbitLine);
+      scene.add(orbitLine);
 
       const geometry = new THREE.BufferGeometry();
       const positions = new Float32Array(MAX_SWARM_SATS * 3);
@@ -493,7 +492,7 @@ export default function CinematicEarth() {
       pointsMesh = new THREE.Points(geometry, material);
       pointsMesh.frustumCulled = false;
       swarmPointsRef.current = pointsMesh;
-      customLayerGroupRef.current.add(pointsMesh);
+      scene.add(pointsMesh);
 
       const controls = globeEl.current.controls();
       if (controls) {
@@ -514,6 +513,21 @@ export default function CinematicEarth() {
       if (globeEl.current && globeEl.current.scene()) {
         const scene = globeEl.current.scene();
         if (ambientLight) scene.remove(ambientLight);
+        if (pointsMesh) {
+          scene.remove(pointsMesh);
+          pointsMesh.geometry.dispose();
+          pointsMesh.material.dispose();
+        }
+        if (altLineMeshRef.current) {
+          scene.remove(altLineMeshRef.current);
+          altLineMeshRef.current.geometry.dispose();
+          altLineMeshRef.current.material.dispose();
+        }
+        if (orbitLineMeshRef.current) {
+          scene.remove(orbitLineMeshRef.current);
+          orbitLineMeshRef.current.geometry.dispose();
+          orbitLineMeshRef.current.material.dispose();
+        }
       }
     };
   }, []);
@@ -608,9 +622,6 @@ export default function CinematicEarth() {
         htmlLng="lng"
         htmlAltitude="alt"
         htmlTransitionDuration={0}
-
-        customLayerData={[1]}
-        customThreeObject={() => customLayerGroupRef.current}
 
         htmlElement={() => {
           const el = document.createElement('div');
