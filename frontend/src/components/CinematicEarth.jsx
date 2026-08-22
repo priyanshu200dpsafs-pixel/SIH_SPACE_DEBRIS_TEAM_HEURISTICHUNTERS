@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState, useMemo } from 'react';
 import Globe from 'react-globe.gl';
 import * as satellite from 'satellite.js';
 import * as THREE from 'three';
-import { Satellite, Globe as GlobeIcon, RotateCw, Undo, Redo } from 'lucide-react';
+import { Satellite, Globe as GlobeIcon, RotateCw } from 'lucide-react';
 
 const GLOBE_RADIUS = 100;
 const MAX_SWARM_SATS = 30000;
@@ -617,8 +617,8 @@ export default function CinematicEarth() {
         </button>
         <button 
           onClick={toggleTheme}
-          className="p-2 rounded-md text-slate-400 hover:text-white hover:bg-slate-700/30 transition-colors mx-1"
-          title="Toggle Earth View"
+          className={`p-2 rounded-md transition-colors mx-1 ${earthTheme === 'night' ? 'text-white bg-slate-700/50' : 'text-slate-400 hover:text-white hover:bg-slate-700/30'}`}
+          title="Toggle Earth View (Day/Night)"
         >
           <GlobeIcon size={18} />
         </button>
@@ -628,15 +628,9 @@ export default function CinematicEarth() {
         <button 
           onClick={resetCamera}
           className="p-2 rounded-md text-slate-400 hover:text-white hover:bg-slate-700/30 transition-colors"
-          title="Reset View"
+          title="Reset View & Unlock"
         >
           <RotateCw size={18} />
-        </button>
-        <button className="p-2 rounded-md text-slate-600 cursor-not-allowed mx-1">
-          <Undo size={18} />
-        </button>
-        <button className="p-2 rounded-md text-slate-600 cursor-not-allowed">
-          <Redo size={18} />
         </button>
       </div>
 
