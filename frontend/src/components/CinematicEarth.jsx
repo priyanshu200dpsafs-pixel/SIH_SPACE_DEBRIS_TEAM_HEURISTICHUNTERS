@@ -15,6 +15,7 @@ export default function CinematicEarth() {
   const threatSatsRef = useRef([]);
   const swarmPointsRef = useRef(null);
   const altLineMeshRef = useRef(null);
+  const orbitLineMeshRef = useRef(null);
 
   // Hover & Interaction Refs
   const hoveredThreatRef = useRef(null);
@@ -24,7 +25,6 @@ export default function CinematicEarth() {
   // React State
   const [threatPointsData, setThreatPointsData] = useState([]);
   const [ringsData, setRingsData] = useState([]);
-  const [pathsData, setPathsData] = useState([]);
   const [htmlElementsData, setHtmlElementsData] = useState([]);
   const [dimensions, setDimensions] = useState({ width: window.innerWidth, height: window.innerHeight });
   const [hoveredSat, setHoveredSat] = useState(null);
@@ -126,7 +126,6 @@ export default function CinematicEarth() {
   const unlockSatellite = () => {
     setLockedSatellite(null);
     setHtmlElementsData([]);
-    setPathsData([]);
     if (globeEl.current) {
       globeEl.current.controls().autoRotate = true;
       globeEl.current.pointOfView({ altitude: 2.5 }, 1000);
@@ -300,20 +299,22 @@ export default function CinematicEarth() {
     return () => clearInterval(interval);
   }, [highRiskNames, lockedSatellite?.norad_id, dataReady]);
 
-  // 4. Orbit Trace
+  // 4. Custom Orbit Trace via Three.js (Bypasses all react-globe.gl map-wrapping bugs)
   useEffect(() => {
+    if (!orbitLineMeshRef.current) return;
+    
     if (!lockedSatellite) {
-      setPathsData([]);
+      orbitLineMeshRef.current.visible = false;
       return;
     }
-    const pathCoords = [];
+    
     const baseDate = new Date();
     const periodMins = Math.ceil((2 * Math.PI) / lockedSatellite.satrec.no);
-    const steps = Math.min(periodMins, 360);
+    const steps = 180; // High resolution
     const stepSize = periodMins / steps;
     
-    let prevLng = null;
-    let lngOffset = 0;
+    const positions = orbitLineMeshRef.current.geometry.attributes.position.array;
+    let idx = 0;
 
     for (let i = 0; i <= steps; i++) {
       const d = new Date(baseDate.getTime() + i * stepSize * 60000);
@@ -321,26 +322,27 @@ export default function CinematicEarth() {
         const pv = satellite.propagate(lockedSatellite.satrec, d);
         if (pv.position) {
           const gd = satellite.eciToGeodetic(pv.position, satellite.gstime(d));
-          const rawLng = satellite.degreesLong(gd.longitude);
+          const lat = satellite.degreesLat(gd.latitude);
+          const lng = satellite.degreesLong(gd.longitude);
+          const alt = gd.height / 6371.0;
           
-          if (prevLng !== null) {
-            const delta = rawLng - prevLng;
-            if (delta > 180) lngOffset -= 360;
-            else if (delta < -180) lngOffset += 360;
-          }
+          // Pure Cartesian conversion (immune to date line wrapping issues)
+          const phi = (90 - lat) * (Math.PI / 180);
+          const theta = (lng + 180) * (Math.PI / 180);
+          const r = GLOBE_RADIUS * (1 + alt);
           
-          prevLng = rawLng;
-          const finalLng = rawLng + lngOffset;
-
-          pathCoords.push([
-            satellite.degreesLat(gd.latitude),
-            finalLng,
-            gd.height / 6371.0
-          ]);
+          positions[idx++] = r * Math.sin(phi) * Math.cos(theta); // x
+          positions[idx++] = r * Math.cos(phi);                   // y
+          positions[idx++] = r * Math.sin(phi) * Math.sin(theta); // z
         }
       } catch (e) {}
     }
-    setPathsData([{ coords: pathCoords }]);
+    
+    orbitLineMeshRef.current.geometry.setDrawRange(0, idx / 3);
+    orbitLineMeshRef.current.geometry.attributes.position.needsUpdate = true;
+    orbitLineMeshRef.current.geometry.computeBoundingSphere();
+    orbitLineMeshRef.current.visible = true;
+
   }, [lockedSatellite?.norad_id]);
 
   useEffect(() => {
@@ -453,6 +455,22 @@ export default function CinematicEarth() {
       altLineMeshRef.current = altLine;
       scene.add(altLine);
 
+      // Create Orbit Line (Pure Cartesian)
+      const orbitMat = new THREE.LineBasicMaterial({
+        color: 0x4ade80, // Bright green
+        linewidth: 1,
+        transparent: true,
+        opacity: 0.9,
+      });
+      const orbitGeo = new THREE.BufferGeometry();
+      // Preallocate space for 250 points max
+      orbitGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(250 * 3), 3));
+      orbitGeo.setDrawRange(0, 0);
+      const orbitLine = new THREE.Line(orbitGeo, orbitMat);
+      orbitLine.visible = false;
+      orbitLineMeshRef.current = orbitLine;
+      scene.add(orbitLine);
+
       const geometry = new THREE.BufferGeometry();
       const positions = new Float32Array(MAX_SWARM_SATS * 3);
       geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
@@ -501,6 +519,11 @@ export default function CinematicEarth() {
           scene.remove(altLineMeshRef.current);
           altLineMeshRef.current.geometry.dispose();
           altLineMeshRef.current.material.dispose();
+        }
+        if (orbitLineMeshRef.current) {
+          scene.remove(orbitLineMeshRef.current);
+          orbitLineMeshRef.current.geometry.dispose();
+          orbitLineMeshRef.current.material.dispose();
         }
       }
     };
@@ -590,16 +613,7 @@ export default function CinematicEarth() {
         ringRepeatPeriod="repeatPeriod"
 
         arcsData={[]}
-
-        pathsData={pathsData}
-        pathPoints="coords"
-        pathPointLat={p => p[0]}
-        pathPointLng={p => p[1]}
-        pathPointAlt={p => p[2]}
-        pathColor={() => '#4ade80'} // Bright green like in the screenshot
-        pathResolution={4}
-        pathStroke={2} // Thicker line for better visibility
-
+        
         htmlElementsData={htmlElementsData}
         htmlLat="lat"
         htmlLng="lng"
