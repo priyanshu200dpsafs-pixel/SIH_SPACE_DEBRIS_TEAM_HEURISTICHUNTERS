@@ -3,10 +3,19 @@ import Globe from 'react-globe.gl';
 import * as satellite from 'satellite.js';
 import * as THREE from 'three';
 
+const GLOBE_RADIUS = 100;
+
 export default function CinematicEarth() {
   const globeEl = useRef();
-  const satDataRef = useRef([]);
-  const [pointsData, setPointsData] = useState([]);
+  
+  // Data Refs
+  const allSatsRef = useRef([]);
+  const swarmSatsRef = useRef([]);
+  const threatSatsRef = useRef([]);
+  const swarmPointsRef = useRef(null);
+
+  // React State
+  const [threatPointsData, setThreatPointsData] = useState([]);
   const [ringsData, setRingsData] = useState([]);
   const [pathsData, setPathsData] = useState([]);
   const [htmlElementsData, setHtmlElementsData] = useState([]);
@@ -18,6 +27,7 @@ export default function CinematicEarth() {
   const [lockedSatellite, setLockedSatellite] = useState(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [highRiskNames, setHighRiskNames] = useState(new Set());
+  const [customLayerArray, setCustomLayerArray] = useState([]);
 
   // 1. Fetch Conjunctions
   useEffect(() => {
@@ -56,10 +66,26 @@ export default function CinematicEarth() {
             return null;
           }
         }).filter(Boolean);
-        satDataRef.current = parsed;
+        
+        allSatsRef.current = parsed;
       })
       .catch(e => console.error(e));
   }, []);
+
+  // Partition data when highRiskNames or allSats updates
+  useEffect(() => {
+    if (allSatsRef.current.length === 0) return;
+    
+    allSatsRef.current.forEach(sat => {
+      sat.isHighRisk = highRiskNames.has(sat.name);
+    });
+
+    threatSatsRef.current = allSatsRef.current.filter(s => s.isHighRisk);
+    swarmSatsRef.current = allSatsRef.current.filter(s => !s.isHighRisk);
+    
+    // Trigger creation of the custom particle layer
+    setCustomLayerArray([{ id: 'ghost-swarm', size: swarmSatsRef.current.length }]);
+  }, [highRiskNames, allSatsRef.current.length]);
 
   // Search Logic
   useEffect(() => {
@@ -68,7 +94,7 @@ export default function CinematicEarth() {
       return;
     }
     const q = searchQuery.toLowerCase();
-    const matches = satDataRef.current
+    const matches = allSatsRef.current
       .filter(s => s.name.toLowerCase().includes(q) || s.norad_id.toString().includes(q))
       .slice(0, 8);
     setSearchResults(matches);
@@ -98,32 +124,32 @@ export default function CinematicEarth() {
   // 3. High-performance propagation loop
   useEffect(() => {
     const updatePositions = () => {
-      if (!satDataRef.current || satDataRef.current.length === 0) return;
+      if (allSatsRef.current.length === 0) return;
       const date = new Date();
       const gmst = satellite.gstime(date);
       
-      let needsUpdate = false;
+      let needsThreatUpdate = false;
       let lockedSatUpdated = null;
 
-      satDataRef.current.forEach(sat => {
+      // Update Threat Sats (Active UI Objects)
+      threatSatsRef.current.forEach(sat => {
         try {
           const positionAndVelocity = satellite.propagate(sat.satrec, date);
           const positionEci = positionAndVelocity.position;
-          const velocityEci = positionAndVelocity.velocity;
-          if (!positionEci || !velocityEci) return;
+          if (!positionEci) return;
           
           const positionGd = satellite.eciToGeodetic(positionEci, gmst);
-          
           if (!isNaN(positionGd.longitude) && !isNaN(positionGd.latitude) && !isNaN(positionGd.height)) {
             sat.lat = satellite.degreesLat(positionGd.latitude);
             sat.lng = satellite.degreesLong(positionGd.longitude);
             sat.alt = positionGd.height / 6371.0;
             sat.velocity = Math.sqrt(
-              Math.pow(velocityEci.x, 2) + Math.pow(velocityEci.y, 2) + Math.pow(velocityEci.z, 2)
+              Math.pow(positionAndVelocity.velocity.x, 2) + 
+              Math.pow(positionAndVelocity.velocity.y, 2) + 
+              Math.pow(positionAndVelocity.velocity.z, 2)
             );
             sat.eci = positionEci;
-            sat.isHighRisk = highRiskNames.has(sat.name);
-            needsUpdate = true;
+            needsThreatUpdate = true;
             
             if (lockedSatellite && lockedSatellite.norad_id === sat.norad_id) {
               lockedSatUpdated = sat;
@@ -132,18 +158,80 @@ export default function CinematicEarth() {
         } catch (e) {}
       });
 
-      if (needsUpdate) {
-        setPointsData([...satDataRef.current]);
+      // Also ensure locked satellite is updated even if it's in the swarm
+      if (lockedSatellite && !lockedSatellite.isHighRisk) {
+        const sat = swarmSatsRef.current.find(s => s.norad_id === lockedSatellite.norad_id);
+        if (sat) {
+          try {
+            const positionAndVelocity = satellite.propagate(sat.satrec, date);
+            if (positionAndVelocity.position) {
+              const positionGd = satellite.eciToGeodetic(positionAndVelocity.position, gmst);
+              sat.lat = satellite.degreesLat(positionGd.latitude);
+              sat.lng = satellite.degreesLong(positionGd.longitude);
+              sat.alt = positionGd.height / 6371.0;
+              sat.velocity = Math.sqrt(
+                Math.pow(positionAndVelocity.velocity.x, 2) + 
+                Math.pow(positionAndVelocity.velocity.y, 2) + 
+                Math.pow(positionAndVelocity.velocity.z, 2)
+              );
+              sat.eci = positionAndVelocity.position;
+              lockedSatUpdated = sat;
+              needsThreatUpdate = true;
+            }
+          } catch(e) {}
+        }
+      }
+
+      // Fast update for Swarm Particle System
+      if (swarmPointsRef.current) {
+        const positions = swarmPointsRef.current.geometry.attributes.position.array;
+        let idx = 0;
+        swarmSatsRef.current.forEach(sat => {
+          try {
+            const pos = satellite.propagate(sat.satrec, date).position;
+            if (pos) {
+              const gd = satellite.eciToGeodetic(pos, gmst);
+              const lat = satellite.degreesLat(gd.latitude);
+              const lng = satellite.degreesLong(gd.longitude);
+              const alt = gd.height / 6371.0;
+              
+              // Spherical to Cartesian for react-globe.gl
+              const phi = (90 - lat) * (Math.PI / 180);
+              const theta = (lng + 180) * (Math.PI / 180);
+              const r = GLOBE_RADIUS * (1 + alt);
+              
+              positions[idx++] = r * Math.sin(phi) * Math.cos(theta); // x
+              positions[idx++] = r * Math.cos(phi);                   // y
+              positions[idx++] = r * Math.sin(phi) * Math.sin(theta); // z
+            } else {
+              idx += 3; // skip invalid
+            }
+          } catch(e) {
+            idx += 3;
+          }
+        });
+        swarmPointsRef.current.geometry.attributes.position.needsUpdate = true;
+      }
+
+      // Update React state for Active Threats
+      if (needsThreatUpdate) {
+        // If the locked sat is from the swarm, temporarily add it to the threat array so it renders as a glowing sphere
+        const renderThreats = [...threatSatsRef.current];
+        if (lockedSatUpdated && !lockedSatUpdated.isHighRisk && !renderThreats.find(s => s.norad_id === lockedSatUpdated.norad_id)) {
+           renderThreats.push(lockedSatUpdated);
+        }
+
+        setThreatPointsData(renderThreats);
         
-        // Rings for high-risk
-        const rings = satDataRef.current.filter(s => s.isHighRisk).map(s => ({
-          lat: s.lat, lng: s.lng, maxR: 4, propagationSpeed: 2, repeatPeriod: 1200
+        // Rings for threats
+        const rings = renderThreats.map(s => ({
+          lat: s.lat, lng: s.lng, maxR: s.isHighRisk ? 4 : 2, propagationSpeed: 2, repeatPeriod: 1200
         }));
         setRingsData(rings);
 
-        // Locked satellite tracking
+        // Locked satellite HUD
         if (lockedSatUpdated) {
-          const distances = satDataRef.current
+          const distances = threatSatsRef.current
             .filter(s => s.norad_id !== lockedSatUpdated.norad_id && s.eci && lockedSatUpdated.eci)
             .map(s => {
               const dx = s.eci.x - lockedSatUpdated.eci.x;
@@ -212,20 +300,18 @@ export default function CinematicEarth() {
       globeEl.current.controls().dampingFactor = 0.1;
       globeEl.current.pointOfView({ altitude: 2.5 });
 
-      // Enhance the scene
       const scene = globeEl.current.scene();
       if (scene) {
-        // Add subtle ambient light for depth
         const ambientLight = new THREE.AmbientLight(0x1a2a4a, 0.3);
         scene.add(ambientLight);
       }
     }
   }, []);
 
-  // Memoize Three.js geometries/materials
-  const satGeometry = useMemo(() => new THREE.SphereGeometry(1, 10, 10), []);
-  const normalMat = useMemo(() => new THREE.MeshBasicMaterial({ color: '#00d4ff', transparent: true, opacity: 0.7 }), []);
-  const riskMat = useMemo(() => new THREE.MeshBasicMaterial({ color: '#ff0055' }), []);
+  // Memoize Three.js materials for the Threat spheres
+  const satGeometry = useMemo(() => new THREE.SphereGeometry(1, 12, 12), []);
+  const threatMat = useMemo(() => new THREE.MeshBasicMaterial({ color: '#ff0055' }), []);
+  const lockedMat = useMemo(() => new THREE.MeshBasicMaterial({ color: '#00d4ff' }), []);
   const issMat = useMemo(() => new THREE.MeshBasicMaterial({ color: '#fbbf24' }), []);
 
   return (
@@ -240,15 +326,43 @@ export default function CinematicEarth() {
         atmosphereColor="#00d4ff"
         atmosphereAltitude={0.25}
         
-        objectsData={pointsData}
+        // --- GHOST SWARM (PARTICLE SYSTEM) ---
+        customLayerData={customLayerArray}
+        customThreeObject={(d) => {
+          // Create the particle system once
+          const numSats = d.size;
+          const geometry = new THREE.BufferGeometry();
+          const positions = new Float32Array(numSats * 3);
+          geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+          
+          // Tactical, faint, transparent dots
+          const material = new THREE.PointsMaterial({
+            color: 0x22d3ee,
+            size: 0.3,
+            transparent: true,
+            opacity: 0.15,
+            sizeAttenuation: true,
+            blending: THREE.AdditiveBlending,
+          });
+          
+          const points = new THREE.Points(geometry, material);
+          swarmPointsRef.current = points;
+          return points;
+        }}
+        
+        // --- THREAT ISOLATION (GLOWING SPHERES) ---
+        objectsData={threatPointsData}
         objectLat="lat"
         objectLng="lng"
         objectAltitude="alt"
         objectThreeObject={d => {
           const scale = Math.max(1, d.alt * 0.3);
           const isISS = d.name === 'ISS (ZARYA)';
-          const size = isISS ? 0.06 : (d.isHighRisk ? 0.03 : 0.01) * scale;
-          const mat = isISS ? issMat : (d.isHighRisk ? riskMat : normalMat);
+          const isLocked = lockedSatellite && lockedSatellite.norad_id === d.norad_id;
+          
+          const size = isISS ? 0.06 : (d.isHighRisk ? 0.035 : 0.02) * scale;
+          const mat = isISS ? issMat : (d.isHighRisk ? threatMat : lockedMat);
+          
           const mesh = new THREE.Mesh(satGeometry, mat);
           mesh.scale.set(size, size, size);
           return mesh;
@@ -258,7 +372,7 @@ export default function CinematicEarth() {
         ringsData={ringsData}
         ringLat="lat"
         ringLng="lng"
-        ringColor={() => t => `rgba(255, 0, 85, ${1 - t})`}
+        ringColor={(d) => d.maxR > 2 ? t => `rgba(255, 0, 85, ${1 - t})` : t => `rgba(34, 211, 238, ${1 - t})`}
         ringMaxRadius="maxR"
         ringPropagationSpeed="propagationSpeed"
         ringRepeatPeriod="repeatPeriod"
@@ -330,13 +444,14 @@ export default function CinematicEarth() {
               <div 
                 key={sat.norad_id}
                 onClick={() => lockOnSatellite(sat)}
-                className="px-4 py-2.5 font-mono text-xs cursor-pointer hover:bg-cyan-500/10 border-b border-white/[0.03] transition-all duration-200"
+                className="px-4 py-2.5 font-mono text-xs cursor-pointer hover:bg-cyan-500/10 border-b border-white/[0.03] transition-all duration-200 flex justify-between items-center"
                 style={{ animation: `staggerFadeIn 0.3s ease-out ${i * 0.05}s backwards` }}
               >
-                <div className="flex justify-between items-center">
+                <div className="flex items-center space-x-2">
+                  {sat.isHighRisk && <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />}
                   <span className="text-white font-medium">{sat.name}</span>
-                  <span className="text-slate-600 text-[10px] tabular-nums">{sat.norad_id}</span>
                 </div>
+                <span className="text-slate-600 text-[10px] tabular-nums">ID: {sat.norad_id}</span>
               </div>
             ))}
           </div>
@@ -395,7 +510,7 @@ export default function CinematicEarth() {
 
             {/* Nearest Neighbors */}
             <div>
-              <div className="text-slate-500 text-[9px] uppercase tracking-[0.15em] mb-2">PROXIMITY CONTACTS</div>
+              <div className="text-slate-500 text-[9px] uppercase tracking-[0.15em] mb-2">PROXIMITY THREATS</div>
               {lockedSatellite.nearest && lockedSatellite.nearest.length > 0 ? (
                 <div className="flex flex-col space-y-1.5">
                   {lockedSatellite.nearest.map((n, i) => {
@@ -420,7 +535,7 @@ export default function CinematicEarth() {
                   })}
                 </div>
               ) : (
-                <div className="text-slate-600 text-[10px] font-mono animate-pulse">SCANNING...</div>
+                <div className="text-slate-600 text-[10px] font-mono animate-pulse">NO IMMINENT THREATS...</div>
               )}
             </div>
           </div>
