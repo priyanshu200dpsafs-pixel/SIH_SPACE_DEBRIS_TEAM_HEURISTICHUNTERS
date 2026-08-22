@@ -81,7 +81,19 @@ export default function ThreatMatrixTab({ selectedConjunctionId, setSelectedConj
                     className={`cursor-pointer transition-colors hover:bg-slate-800/60 ${isSelected ? 'bg-cyan-900/30 border-l-4 border-cyan-400' : 'border-l-4 border-transparent'}`}
                   >
                     <td className="px-4 py-3 font-semibold text-slate-200">
-                      {c.object_1?.name || c.norad_id_1} x {c.object_2?.name || c.norad_id_2}
+                      <div className="flex items-center">
+                        <span>{c.object_1?.name || c.norad_id_1} x {c.object_2?.name || c.norad_id_2}</span>
+                        {(() => {
+                          const op1 = (c.object_1?.name || "").split(/[-\s]/)[0].toUpperCase();
+                          const op2 = (c.object_2?.name || "").split(/[-\s]/)[0].toUpperCase();
+                          const isCrossOp = op1 && op2 && op1 !== op2;
+                          return isCrossOp ? (
+                            <span className="ml-3 text-[9px] px-1.5 py-0.5 rounded border border-red-500/50 bg-red-500/10 text-red-400 tracking-wider">CROSS-OP</span>
+                          ) : (
+                            <span className="ml-3 text-[9px] px-1.5 py-0.5 rounded border border-slate-600/50 bg-slate-800/30 text-slate-400 tracking-wider">SAME-OP</span>
+                          );
+                        })()}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-slate-300">{c.tca.replace('T', ' ').substring(0,19)}</td>
                     <td className="px-4 py-3 text-slate-300">{c.min_dist_km.toFixed(3)}</td>

@@ -5,3 +5,5 @@ __pycache__/
 *.pth
 *.h5
 backend/app/data/cache/*
+frontend/dist/
+.DS_Store

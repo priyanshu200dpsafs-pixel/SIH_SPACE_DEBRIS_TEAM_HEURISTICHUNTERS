@@ -248,6 +248,13 @@ def run_stage4_full_pipeline(max_refine_candidates: int = 250, f107: float = 150
                 colocated_count += 1
                 continue
 
+        # Check same-launch (recently deployed siblings)
+        rec1 = tle_lookup.get(id1)
+        rec2 = tle_lookup.get(id2)
+        if rec1 and rec2 and is_same_launch(rec1.get('OBJECT_ID'), rec2.get('OBJECT_ID')):
+            formation_count += 1
+            continue
+
         genuine_conjunctions.append(ev)
 
     print(f"  Filtered out {colocated_count} co-located / {formation_count} formation pairs.")
