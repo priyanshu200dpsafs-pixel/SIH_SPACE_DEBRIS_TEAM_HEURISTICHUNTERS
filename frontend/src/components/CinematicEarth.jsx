@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useState, useMemo } from 'react';
 import Globe from 'react-globe.gl';
 import * as satellite from 'satellite.js';
 import * as THREE from 'three';
+import { Satellite, Globe as GlobeIcon, RotateCw, Undo, Redo } from 'lucide-react';
 
 const GLOBE_RADIUS = 100;
 const MAX_SWARM_SATS = 30000;
@@ -28,6 +29,10 @@ export default function CinematicEarth() {
   const [htmlElementsData, setHtmlElementsData] = useState([]);
   const [dimensions, setDimensions] = useState({ width: window.innerWidth, height: window.innerHeight });
   const [hoveredSat, setHoveredSat] = useState(null);
+  
+  // Toolbar State
+  const [earthTheme, setEarthTheme] = useState('blue-marble'); // 'blue-marble' | 'night'
+  const [showSwarm, setShowSwarm] = useState(true);
   
   // Search & Lock State
   const [searchQuery, setSearchQuery] = useState('');
@@ -138,6 +143,16 @@ export default function CinematicEarth() {
     }
   }, [lockedSatellite]);
 
+  // Toolbar Actions
+  const toggleTheme = () => setEarthTheme(prev => prev === 'blue-marble' ? 'night' : 'blue-marble');
+  const toggleSwarm = () => setShowSwarm(prev => !prev);
+  const resetCamera = () => {
+    unlockSatellite();
+    if (globeEl.current) {
+      globeEl.current.pointOfView({ lat: 0, lng: 0, altitude: 2.5 }, 1000);
+    }
+  };
+
   // 3. High-performance propagation loop
   useEffect(() => {
     const updatePositions = () => {
@@ -147,6 +162,11 @@ export default function CinematicEarth() {
       
       let needsThreatUpdate = false;
       let lockedSatUpdated = null;
+
+      // Apply swarm visibility
+      if (swarmPointsRef.current) {
+        swarmPointsRef.current.visible = showSwarm;
+      }
 
       threatSatsRef.current.forEach(sat => {
         try {
@@ -297,7 +317,7 @@ export default function CinematicEarth() {
 
     const interval = setInterval(updatePositions, 500);
     return () => clearInterval(interval);
-  }, [highRiskNames, lockedSatellite?.norad_id, dataReady]);
+  }, [highRiskNames, lockedSatellite?.norad_id, dataReady, showSwarm]);
 
   // 4. Custom Orbit Trace via Three.js (Bypasses all react-globe.gl map-wrapping bugs)
   useEffect(() => {
@@ -477,17 +497,29 @@ export default function CinematicEarth() {
       const positions = new Float32Array(MAX_SWARM_SATS * 3);
       geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
       
-      // CRITICAL FIX: The raycaster needs a valid bounding sphere to process intersections!
-      // Since our points are dynamically moving around the Earth (radius 100), a fixed radius of 200 covers all LEO/MEO objects.
-      geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0, 0), 200);
-      
-      // Made swarm bright solid cyan and larger
+      // Generate circular texture programmatically
+      const canvas = document.createElement('canvas');
+      canvas.width = 16;
+      canvas.height = 16;
+      const context = canvas.getContext('2d');
+      context.beginPath();
+      context.arc(8, 8, 8, 0, 2 * Math.PI);
+      context.fillStyle = '#ffffff';
+      context.fill();
+      const circleTexture = new THREE.CanvasTexture(canvas);
+
       const material = new THREE.PointsMaterial({
-        color: 0x00d4ff, 
-        size: 2.0,
-        transparent: false,
-        sizeAttenuation: true,
+        color: 0xffffff,
+        size: 3.5,
+        map: circleTexture,
+        transparent: true,
+        opacity: 0.9,
+        sizeAttenuation: false,
+        alphaTest: 0.5
       });
+      
+      // CRITICAL FIX: The raycaster needs a valid bounding sphere to process intersections!
+      geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0, 0), 200);
       
       pointsMesh = new THREE.Points(geometry, material);
       pointsMesh.frustumCulled = false;
@@ -574,11 +606,45 @@ export default function CinematicEarth() {
         )}
       </div>
 
+      {/* Toolbar Layer */}
+      <div className="absolute top-6 left-1/2 -translate-x-1/2 z-40 flex items-center bg-[#1a1b26]/90 border border-slate-700/50 rounded-md shadow-2xl backdrop-blur-md px-1 py-1">
+        <button 
+          onClick={toggleSwarm}
+          className={`p-2 rounded-md transition-colors ${showSwarm ? 'text-white bg-slate-700/50' : 'text-slate-400 hover:text-white hover:bg-slate-700/30'}`}
+          title="Toggle Satellite Swarm"
+        >
+          <Satellite size={18} />
+        </button>
+        <button 
+          onClick={toggleTheme}
+          className="p-2 rounded-md text-slate-400 hover:text-white hover:bg-slate-700/30 transition-colors mx-1"
+          title="Toggle Earth View"
+        >
+          <GlobeIcon size={18} />
+        </button>
+        
+        <div className="w-px h-6 bg-slate-700/50 mx-1"></div>
+        
+        <button 
+          onClick={resetCamera}
+          className="p-2 rounded-md text-slate-400 hover:text-white hover:bg-slate-700/30 transition-colors"
+          title="Reset View"
+        >
+          <RotateCw size={18} />
+        </button>
+        <button className="p-2 rounded-md text-slate-600 cursor-not-allowed mx-1">
+          <Undo size={18} />
+        </button>
+        <button className="p-2 rounded-md text-slate-600 cursor-not-allowed">
+          <Redo size={18} />
+        </button>
+      </div>
+
       <Globe
         ref={globeEl}
         width={dimensions.width}
         height={dimensions.height}
-        globeImageUrl="//unpkg.com/three-globe/example/img/earth-blue-marble.jpg"
+        globeImageUrl={`//unpkg.com/three-globe/example/img/earth-${earthTheme}.jpg`}
         bumpImageUrl="//unpkg.com/three-globe/example/img/earth-topology.png"
         backgroundImageUrl="//unpkg.com/three-globe/example/img/night-sky.png"
         atmosphereColor="#00d4ff"
