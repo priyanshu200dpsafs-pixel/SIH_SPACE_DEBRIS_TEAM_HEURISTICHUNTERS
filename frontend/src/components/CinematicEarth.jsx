@@ -14,6 +14,7 @@ export default function CinematicEarth() {
   const swarmSatsRef = useRef([]);
   const threatSatsRef = useRef([]);
   const swarmPointsRef = useRef(null);
+  const altLineMeshRef = useRef(null);
 
   // Hover & Interaction Refs
   const hoveredThreatRef = useRef(null);
@@ -132,6 +133,12 @@ export default function CinematicEarth() {
     }
   };
 
+  useEffect(() => {
+    if (!lockedSatellite && altLineMeshRef.current) {
+      altLineMeshRef.current.visible = false;
+    }
+  }, [lockedSatellite]);
+
   // 3. High-performance propagation loop
   useEffect(() => {
     const updatePositions = () => {
@@ -245,6 +252,30 @@ export default function CinematicEarth() {
         setRingsData(rings);
 
         if (lockedSatUpdated) {
+          // Update Custom Altitude Line for Locked Satellite
+          if (altLineMeshRef.current) {
+            const phi = (90 - lockedSatUpdated.lat) * (Math.PI / 180);
+            const theta = (lockedSatUpdated.lng + 180) * (Math.PI / 180);
+            
+            const r_ground = GLOBE_RADIUS;
+            const r_sat = GLOBE_RADIUS * (1 + lockedSatUpdated.alt);
+            
+            const x1 = r_ground * Math.sin(phi) * Math.cos(theta);
+            const y1 = r_ground * Math.cos(phi);
+            const z1 = r_ground * Math.sin(phi) * Math.sin(theta);
+            
+            const x2 = r_sat * Math.sin(phi) * Math.cos(theta);
+            const y2 = r_sat * Math.cos(phi);
+            const z2 = r_sat * Math.sin(phi) * Math.sin(theta);
+            
+            altLineMeshRef.current.geometry.setFromPoints([
+              new THREE.Vector3(x1, y1, z1),
+              new THREE.Vector3(x2, y2, z2)
+            ]);
+            altLineMeshRef.current.computeLineDistances();
+            altLineMeshRef.current.visible = true;
+          }
+
           const distances = threatSatsRef.current
             .filter(s => s.norad_id !== lockedSatUpdated.norad_id && s.eci && lockedSatUpdated.eci)
             .map(s => {
@@ -393,6 +424,21 @@ export default function CinematicEarth() {
       ambientLight = new THREE.AmbientLight(0x1a2a4a, 0.3);
       scene.add(ambientLight);
 
+      // Create Altitude Line for Locked Satellite
+      const altMat = new THREE.LineDashedMaterial({
+        color: 0x4ade80, // Bright green for altitude tracking
+        linewidth: 1,
+        dashSize: 2,
+        gapSize: 2,
+        transparent: true,
+        opacity: 0.9
+      });
+      const altGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+      const altLine = new THREE.Line(altGeo, altMat);
+      altLine.visible = false;
+      altLineMeshRef.current = altLine;
+      scene.add(altLine);
+
       const geometry = new THREE.BufferGeometry();
       const positions = new Float32Array(MAX_SWARM_SATS * 3);
       geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
@@ -436,6 +482,11 @@ export default function CinematicEarth() {
           scene.remove(pointsMesh);
           pointsMesh.geometry.dispose();
           pointsMesh.material.dispose();
+        }
+        if (altLineMeshRef.current) {
+          scene.remove(altLineMeshRef.current);
+          altLineMeshRef.current.geometry.dispose();
+          altLineMeshRef.current.material.dispose();
         }
       }
     };
@@ -531,9 +582,9 @@ export default function CinematicEarth() {
         pathPointLat={p => p[0]}
         pathPointLng={p => p[1]}
         pathPointAlt={p => p[2]}
-        pathColor={() => t => `rgba(34, 211, 238, ${1 - t * 0.7})`}
+        pathColor={() => '#4ade80'} // Bright green like in the screenshot
         pathResolution={4}
-        pathStroke={1.5}
+        pathStroke={2} // Thicker line for better visibility
 
         htmlElementsData={htmlElementsData}
         htmlLat="lat"
