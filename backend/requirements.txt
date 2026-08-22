@@ -1,0 +1,16 @@
+fastapi
+uvicorn
+sgp4
+skyfield
+numpy
+scipy
+pandas
+xgboost
+requests
+sqlalchemy[asyncio]
+asyncpg
+alembic
+pydantic-settings
+apscheduler
+greenlet
+anthropic

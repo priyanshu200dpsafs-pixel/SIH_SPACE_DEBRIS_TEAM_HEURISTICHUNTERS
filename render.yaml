@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: space-debris-api
+    env: python
+    region: ohio
+    plan: starter
+    buildCommand: "cd backend && pip install -r requirements.txt"
+    startCommand: "cd backend && alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: space-debris-db
+          property: connectionString
+      - key: BACKEND_CORS_ORIGINS
+        value: "https://your-frontend-domain.vercel.app"
+      - key: ANTHROPIC_API_KEY
+        sync: false # Set in dashboard
+      - key: ADMIN_API_KEY
+        sync: false # Set in dashboard
+
+databases:
+  - name: space-debris-db
+    databaseName: spacedebris
+    user: admin
+    plan: starter

@@ -1,0 +1,34 @@
+{
+  "name": "space-debris-tracker-frontend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@react-three/fiber": "^8.15.12",
+    "axios": "^1.6.5",
+    "clsx": "^2.1.1",
+    "framer-motion": "^13.1.1",
+    "lucide-react": "^1.33.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-globe.gl": "^2.38.0",
+    "satellite.js": "^4.1.4",
+    "tailwind-merge": "^3.6.0",
+    "tailwindcss": "^3.4.1",
+    "three": "^0.185.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.43",
+    "@types/react-dom": "^18.2.17",
+    "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.5.4",
+    "postcss": "^8.5.26",
+    "vite": "^5.0.8"
+  }
+}

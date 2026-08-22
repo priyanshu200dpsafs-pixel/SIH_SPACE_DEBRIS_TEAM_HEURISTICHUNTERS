@@ -1,0 +1,25 @@
+from pydantic_settings import BaseSettings
+from typing import Optional
+
+class Settings(BaseSettings):
+    # API Settings
+    PROJECT_NAME: str = "Space Debris Tracker API"
+    API_V1_STR: str = "/api/v1"
+    
+    # Database
+    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/space_debris"
+    
+    # CORS Config
+    BACKEND_CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5173"
+    
+    # App Settings
+    REFRESH_INTERVAL_HOURS: int = 4
+    ANTHROPIC_API_KEY: Optional[str] = None
+    GEMINI_API_KEY: Optional[str] = None
+    ADMIN_API_KEY: str = "dev-secret-key" # fallback for dev
+
+    class Config:
+        env_file = ".env"
+        case_sensitive = True
+
+settings = Settings()
