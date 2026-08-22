@@ -216,6 +216,7 @@ export default function CinematicEarth() {
               sat.lat = lat;
               sat.lng = lng;
               sat.alt = alt;
+              sat.velocity = Math.sqrt(Math.pow(pos.x, 2) + Math.pow(pos.y, 2) + Math.pow(pos.z, 2)) || 0;
             } else {
               idx += 3;
             }
@@ -303,106 +304,129 @@ export default function CinematicEarth() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // 5. Interaction & Custom Raycasting
+  // 5. Interaction & Custom Raycasting (Bulletproof)
   useEffect(() => {
-    if (!globeEl.current) return;
-    const canvas = globeEl.current.renderer().domElement;
-    const camera = globeEl.current.camera();
+    let downPos = { x: 0, y: 0 };
     const raycaster = new THREE.Raycaster();
-    raycaster.params.Points.threshold = 1.5; // High threshold to easily hover dots
+    raycaster.params.Points.threshold = 4.0; // Large threshold to make hovering easy
 
-    const onMouseMove = (e) => {
-      // Fast tooltip DOM tracking
-      if (tooltipRef.current) {
-        tooltipRef.current.style.transform = `translate(${e.clientX + 15}px, ${e.clientY + 15}px)`;
-      }
-
-      // If hovering a threat sphere, skip swarm raycasting
-      if (hoveredThreatRef.current) {
-        setHoveredSat(hoveredThreatRef.current);
-        canvas.style.cursor = 'pointer';
-        return;
-      }
-
-      // Custom Raycast against Swarm Particle System
-      if (swarmPointsRef.current) {
-        const rect = canvas.getBoundingClientRect();
-        const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-        const y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-        
-        raycaster.setFromCamera({ x, y }, camera);
-        const intersects = raycaster.intersectObject(swarmPointsRef.current);
-        
-        if (intersects.length > 0) {
-          const index = intersects[0].index;
-          const sat = swarmSatsRef.current[index];
-          if (sat) {
-            setHoveredSat(sat);
-            canvas.style.cursor = 'pointer';
-            return;
-          }
-        }
-      }
-      
-      setHoveredSat(null);
-      canvas.style.cursor = 'default';
+    const onPointerDown = (e) => {
+      downPos = { x: e.clientX, y: e.clientY };
     };
 
-    const onClick = () => {
-      if (hoveredSatRef.current) {
+    const onPointerUp = (e) => {
+      const dist = Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y);
+      if (dist < 5 && hoveredSatRef.current) {
         lockOnSatellite(hoveredSatRef.current);
       }
     };
 
-    canvas.addEventListener('mousemove', onMouseMove);
-    canvas.addEventListener('click', onClick);
+    const onMouseMove = (e) => {
+      if (tooltipRef.current) {
+        tooltipRef.current.style.transform = `translate(${e.clientX + 15}px, ${e.clientY + 15}px)`;
+      }
+
+      if (hoveredThreatRef.current) {
+        setHoveredSat(hoveredThreatRef.current);
+        document.body.style.cursor = 'pointer';
+        return;
+      }
+
+      if (!globeEl.current) return;
+      const renderer = globeEl.current.renderer();
+      const camera = globeEl.current.camera();
+      if (!renderer || !camera || !swarmPointsRef.current) return;
+
+      const canvas = renderer.domElement;
+      const rect = canvas.getBoundingClientRect();
+      const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      const y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+      
+      raycaster.setFromCamera({ x, y }, camera);
+      const intersects = raycaster.intersectObject(swarmPointsRef.current);
+      
+      if (intersects.length > 0) {
+        const index = intersects[0].index;
+        const sat = swarmSatsRef.current[index];
+        if (sat) {
+          setHoveredSat(sat);
+          document.body.style.cursor = 'pointer';
+          return;
+        }
+      }
+      
+      setHoveredSat(null);
+      document.body.style.cursor = 'default';
+    };
+
+    window.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('mousemove', onMouseMove);
     return () => {
-      canvas.removeEventListener('mousemove', onMouseMove);
-      canvas.removeEventListener('click', onClick);
+      window.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('mousemove', onMouseMove);
+      document.body.style.cursor = 'default';
     };
   }, []);
 
   // Set up Scene & Ghost Swarm Particle System
   useEffect(() => {
-    if (!globeEl.current) return;
-    const scene = globeEl.current.scene();
-    if (!scene) return;
+    let frame;
+    let pointsMesh = null;
+    let ambientLight = null;
 
-    const ambientLight = new THREE.AmbientLight(0x1a2a4a, 0.3);
-    scene.add(ambientLight);
+    const initThreeJS = () => {
+      if (!globeEl.current || !globeEl.current.scene()) {
+        frame = requestAnimationFrame(initThreeJS);
+        return;
+      }
 
-    const geometry = new THREE.BufferGeometry();
-    const positions = new Float32Array(MAX_SWARM_SATS * 3);
-    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    
-    // Made swarm brighter and larger so they are properly visible
-    const material = new THREE.PointsMaterial({
-      color: 0x22d3ee,
-      size: 1.5,
-      transparent: true,
-      opacity: 0.8,
-      sizeAttenuation: true,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false
-    });
-    
-    const points = new THREE.Points(geometry, material);
-    swarmPointsRef.current = points;
-    scene.add(points);
+      const scene = globeEl.current.scene();
+      ambientLight = new THREE.AmbientLight(0x1a2a4a, 0.3);
+      scene.add(ambientLight);
 
-    globeEl.current.controls().autoRotate = true;
-    globeEl.current.controls().autoRotateSpeed = 0.35;
-    globeEl.current.controls().enableZoom = true;
-    globeEl.current.controls().zoomSpeed = 0.8;
-    globeEl.current.controls().enableDamping = true;
-    globeEl.current.controls().dampingFactor = 0.1;
-    globeEl.current.pointOfView({ altitude: 2.5 });
+      const geometry = new THREE.BufferGeometry();
+      const positions = new Float32Array(MAX_SWARM_SATS * 3);
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      
+      // Made swarm bright solid cyan and larger
+      const material = new THREE.PointsMaterial({
+        color: 0x00d4ff, 
+        size: 2.0,
+        transparent: false,
+        sizeAttenuation: true,
+      });
+      
+      pointsMesh = new THREE.Points(geometry, material);
+      swarmPointsRef.current = pointsMesh;
+      scene.add(pointsMesh);
+
+      const controls = globeEl.current.controls();
+      if (controls) {
+        controls.autoRotate = true;
+        controls.autoRotateSpeed = 0.35;
+        controls.enableZoom = true;
+        controls.zoomSpeed = 0.8;
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.1;
+      }
+      globeEl.current.pointOfView({ altitude: 2.5 });
+    };
+
+    initThreeJS();
 
     return () => {
-      scene.remove(ambientLight);
-      scene.remove(points);
-      geometry.dispose();
-      material.dispose();
+      cancelAnimationFrame(frame);
+      if (globeEl.current && globeEl.current.scene()) {
+        const scene = globeEl.current.scene();
+        if (ambientLight) scene.remove(ambientLight);
+        if (pointsMesh) {
+          scene.remove(pointsMesh);
+          pointsMesh.geometry.dispose();
+          pointsMesh.material.dispose();
+        }
+      }
     };
   }, []);
 
@@ -568,7 +592,7 @@ export default function CinematicEarth() {
 
       {/* TACTICAL TELEMETRY HUD */}
       {lockedSatellite && (
-        <div className="absolute top-6 right-6 z-[100] w-[340px] animate-slideUp">
+        <div className="absolute top-6 right-6 z-[100] w-[340px] animate-slideUp pointer-events-none">
           <div className="glass-panel-bright p-5 pointer-events-auto">
             {/* Header */}
             <div className="flex justify-between items-start mb-4 pb-3 border-b border-white/[0.06]">
