@@ -15,12 +15,18 @@ export default function CinematicEarth() {
   const threatSatsRef = useRef([]);
   const swarmPointsRef = useRef(null);
 
+  // Hover & Interaction Refs
+  const hoveredThreatRef = useRef(null);
+  const hoveredSatRef = useRef(null);
+  const tooltipRef = useRef(null);
+
   // React State
   const [threatPointsData, setThreatPointsData] = useState([]);
   const [ringsData, setRingsData] = useState([]);
   const [pathsData, setPathsData] = useState([]);
   const [htmlElementsData, setHtmlElementsData] = useState([]);
   const [dimensions, setDimensions] = useState({ width: window.innerWidth, height: window.innerHeight });
+  const [hoveredSat, setHoveredSat] = useState(null);
   
   // Search & Lock State
   const [searchQuery, setSearchQuery] = useState('');
@@ -29,6 +35,11 @@ export default function CinematicEarth() {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [highRiskNames, setHighRiskNames] = useState(new Set());
   const [dataReady, setDataReady] = useState(false);
+
+  // Keep ref in sync for event listeners
+  useEffect(() => {
+    hoveredSatRef.current = hoveredSat;
+  }, [hoveredSat]);
 
   // 1. Fetch Conjunctions
   useEffect(() => {
@@ -74,7 +85,7 @@ export default function CinematicEarth() {
       .catch(e => console.error(e));
   }, []);
 
-  // Partition data when highRiskNames or allSats updates
+  // Partition data
   useEffect(() => {
     if (!dataReady || allSatsRef.current.length === 0) return;
     
@@ -84,8 +95,6 @@ export default function CinematicEarth() {
 
     threatSatsRef.current = allSatsRef.current.filter(s => s.isHighRisk);
     swarmSatsRef.current = allSatsRef.current.filter(s => !s.isHighRisk);
-    
-    // Initialize threats so they render immediately
     setThreatPointsData([...threatSatsRef.current]);
   }, [highRiskNames, dataReady]);
 
@@ -133,7 +142,6 @@ export default function CinematicEarth() {
       let needsThreatUpdate = false;
       let lockedSatUpdated = null;
 
-      // Update Threat Sats (Active UI Objects)
       threatSatsRef.current.forEach(sat => {
         try {
           const positionAndVelocity = satellite.propagate(sat.satrec, date);
@@ -160,7 +168,6 @@ export default function CinematicEarth() {
         } catch (e) {}
       });
 
-      // Also ensure locked satellite is updated even if it's in the swarm
       if (lockedSatellite && !lockedSatellite.isHighRisk) {
         const sat = swarmSatsRef.current.find(s => s.norad_id === lockedSatellite.norad_id);
         if (sat) {
@@ -184,12 +191,11 @@ export default function CinematicEarth() {
         }
       }
 
-      // Fast update for Swarm Particle System
       if (swarmPointsRef.current && swarmSatsRef.current.length > 0) {
         const positions = swarmPointsRef.current.geometry.attributes.position.array;
         let idx = 0;
         swarmSatsRef.current.forEach(sat => {
-          if (idx >= positions.length) return; // Prevent overflow
+          if (idx >= positions.length) return;
           try {
             const pos = satellite.propagate(sat.satrec, date).position;
             if (pos) {
@@ -198,31 +204,32 @@ export default function CinematicEarth() {
               const lng = satellite.degreesLong(gd.longitude);
               const alt = gd.height / 6371.0;
               
-              // Spherical to Cartesian for react-globe.gl standard orientation
               const phi = (90 - lat) * (Math.PI / 180);
               const theta = (lng + 180) * (Math.PI / 180);
               const r = GLOBE_RADIUS * (1 + alt);
               
-              positions[idx++] = r * Math.sin(phi) * Math.cos(theta); // x
-              positions[idx++] = r * Math.cos(phi);                   // y
-              positions[idx++] = r * Math.sin(phi) * Math.sin(theta); // z
+              positions[idx++] = r * Math.sin(phi) * Math.cos(theta);
+              positions[idx++] = r * Math.cos(phi);
+              positions[idx++] = r * Math.sin(phi) * Math.sin(theta);
+              
+              // Cache data for tooltip
+              sat.lat = lat;
+              sat.lng = lng;
+              sat.alt = alt;
             } else {
-              idx += 3; // skip invalid
+              idx += 3;
             }
           } catch(e) {
             idx += 3;
           }
         });
         
-        // Hide remaining unused vertices at center of earth
         for (let i = idx; i < positions.length; i++) {
           positions[i] = 0;
         }
-        
         swarmPointsRef.current.geometry.attributes.position.needsUpdate = true;
       }
 
-      // Update React state for Active Threats
       if (needsThreatUpdate) {
         const renderThreats = [...threatSatsRef.current];
         if (lockedSatUpdated && !lockedSatUpdated.isHighRisk && !renderThreats.find(s => s.norad_id === lockedSatUpdated.norad_id)) {
@@ -296,26 +303,84 @@ export default function CinematicEarth() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // 5. Interaction & Custom Raycasting
+  useEffect(() => {
+    if (!globeEl.current) return;
+    const canvas = globeEl.current.renderer().domElement;
+    const camera = globeEl.current.camera();
+    const raycaster = new THREE.Raycaster();
+    raycaster.params.Points.threshold = 1.5; // High threshold to easily hover dots
+
+    const onMouseMove = (e) => {
+      // Fast tooltip DOM tracking
+      if (tooltipRef.current) {
+        tooltipRef.current.style.transform = `translate(${e.clientX + 15}px, ${e.clientY + 15}px)`;
+      }
+
+      // If hovering a threat sphere, skip swarm raycasting
+      if (hoveredThreatRef.current) {
+        setHoveredSat(hoveredThreatRef.current);
+        canvas.style.cursor = 'pointer';
+        return;
+      }
+
+      // Custom Raycast against Swarm Particle System
+      if (swarmPointsRef.current) {
+        const rect = canvas.getBoundingClientRect();
+        const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+        const y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+        
+        raycaster.setFromCamera({ x, y }, camera);
+        const intersects = raycaster.intersectObject(swarmPointsRef.current);
+        
+        if (intersects.length > 0) {
+          const index = intersects[0].index;
+          const sat = swarmSatsRef.current[index];
+          if (sat) {
+            setHoveredSat(sat);
+            canvas.style.cursor = 'pointer';
+            return;
+          }
+        }
+      }
+      
+      setHoveredSat(null);
+      canvas.style.cursor = 'default';
+    };
+
+    const onClick = () => {
+      if (hoveredSatRef.current) {
+        lockOnSatellite(hoveredSatRef.current);
+      }
+    };
+
+    canvas.addEventListener('mousemove', onMouseMove);
+    canvas.addEventListener('click', onClick);
+    return () => {
+      canvas.removeEventListener('mousemove', onMouseMove);
+      canvas.removeEventListener('click', onClick);
+    };
+  }, []);
+
   // Set up Scene & Ghost Swarm Particle System
   useEffect(() => {
     if (!globeEl.current) return;
     const scene = globeEl.current.scene();
     if (!scene) return;
 
-    // Ambient Light
     const ambientLight = new THREE.AmbientLight(0x1a2a4a, 0.3);
     scene.add(ambientLight);
 
-    // Particle System Setup (Directly injected into Three.js scene)
     const geometry = new THREE.BufferGeometry();
     const positions = new Float32Array(MAX_SWARM_SATS * 3);
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     
+    // Made swarm brighter and larger so they are properly visible
     const material = new THREE.PointsMaterial({
       color: 0x22d3ee,
-      size: 0.8,
+      size: 1.5,
       transparent: true,
-      opacity: 0.5,
+      opacity: 0.8,
       sizeAttenuation: true,
       blending: THREE.AdditiveBlending,
       depthWrite: false
@@ -325,7 +390,6 @@ export default function CinematicEarth() {
     swarmPointsRef.current = points;
     scene.add(points);
 
-    // Globe controls
     globeEl.current.controls().autoRotate = true;
     globeEl.current.controls().autoRotateSpeed = 0.35;
     globeEl.current.controls().enableZoom = true;
@@ -342,7 +406,6 @@ export default function CinematicEarth() {
     };
   }, []);
 
-  // Memoize Three.js materials for the Threat spheres
   const satGeometry = useMemo(() => new THREE.SphereGeometry(1, 12, 12), []);
   const threatMat = useMemo(() => new THREE.MeshBasicMaterial({ color: '#ff0055' }), []);
   const lockedMat = useMemo(() => new THREE.MeshBasicMaterial({ color: '#00d4ff' }), []);
@@ -350,6 +413,41 @@ export default function CinematicEarth() {
 
   return (
     <div className="relative w-full h-full bg-[var(--color-void)] overflow-hidden">
+      
+      {/* TOOLTIP OVERLAY */}
+      <div 
+        ref={tooltipRef}
+        className="fixed top-0 left-0 z-[100] pointer-events-none transition-opacity duration-150"
+        style={{ opacity: hoveredSat ? 1 : 0 }}
+      >
+        {hoveredSat && (
+          <div className="glass-panel-bright p-3 min-w-[220px]">
+            <div className="flex items-center space-x-2 mb-2 pb-2 border-b border-white/[0.1]">
+              <div className={`w-1.5 h-1.5 rounded-full ${hoveredSat.isHighRisk ? 'bg-red-500 animate-pulse' : 'bg-cyan-400'}`}></div>
+              <div className="text-white font-bold text-[11px] uppercase tracking-wider truncate">{hoveredSat.name}</div>
+            </div>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[10px] font-mono">
+              <div className="text-slate-500">NORAD</div>
+              <div className="text-cyan-300 text-right">{hoveredSat.norad_id}</div>
+              
+              <div className="text-slate-500">ALTITUDE</div>
+              <div className="text-slate-300 text-right">{(hoveredSat.alt * 6371).toFixed(1)} km</div>
+              
+              <div className="text-slate-500">LATITUDE</div>
+              <div className="text-slate-300 text-right">{hoveredSat.lat?.toFixed(2)}°</div>
+              
+              <div className="text-slate-500">LONGITUDE</div>
+              <div className="text-slate-300 text-right">{hoveredSat.lng?.toFixed(2)}°</div>
+            </div>
+            {hoveredSat.isHighRisk && (
+              <div className="mt-2.5 text-[9px] text-red-400 border border-red-500/30 bg-red-500/10 text-center py-0.5 uppercase tracking-widest font-bold">
+                ACTIVE THREAT
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       <Globe
         ref={globeEl}
         width={dimensions.width}
@@ -360,7 +458,6 @@ export default function CinematicEarth() {
         atmosphereColor="#00d4ff"
         atmosphereAltitude={0.25}
         
-        // --- THREAT ISOLATION (GLOWING SPHERES) ---
         objectsData={threatPointsData}
         objectLat="lat"
         objectLng="lng"
@@ -376,7 +473,9 @@ export default function CinematicEarth() {
           mesh.scale.set(size, size, size);
           return mesh;
         }}
-        onObjectClick={lockOnSatellite}
+        onObjectHover={(obj) => {
+          hoveredThreatRef.current = obj || null;
+        }}
         
         ringsData={ringsData}
         ringLat="lat"
@@ -427,8 +526,8 @@ export default function CinematicEarth() {
         }}
       />
 
-      {/* SEARCH BAR — Top-left, refined */}
-      <div className="absolute top-6 left-6 z-50 w-80">
+      {/* SEARCH BAR */}
+      <div className="absolute top-6 left-6 z-[100] w-80">
         <div className="relative">
           <input 
             type="text" 
@@ -469,8 +568,8 @@ export default function CinematicEarth() {
 
       {/* TACTICAL TELEMETRY HUD */}
       {lockedSatellite && (
-        <div className="absolute top-6 right-6 z-50 w-[340px] animate-slideUp">
-          <div className="glass-panel-bright p-5">
+        <div className="absolute top-6 right-6 z-[100] w-[340px] animate-slideUp">
+          <div className="glass-panel-bright p-5 pointer-events-auto">
             {/* Header */}
             <div className="flex justify-between items-start mb-4 pb-3 border-b border-white/[0.06]">
               <div>
