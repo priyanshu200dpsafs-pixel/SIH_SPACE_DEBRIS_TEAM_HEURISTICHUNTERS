@@ -625,12 +625,12 @@ export default function CinematicEarth() {
           const el = document.createElement('div');
           el.style.pointerEvents = 'none';
           el.innerHTML = `
-            <div style="transform: translate(-50%, -50%);">
-              <svg width="70" height="70" viewBox="0 0 40 40" style="animation: reticleSpin 8s linear infinite;">
+            <div style="transform: translate(-50%, -50%); position: relative; width: 70px; height: 70px;">
+              <svg width="70" height="70" viewBox="0 0 40 40" style="position: absolute; top: 0; left: 0; animation: reticleSpin 8s linear infinite; transform-origin: center;">
                 <circle cx="20" cy="20" r="17" fill="none" stroke="rgba(34,211,238,0.6)" stroke-width="0.8" stroke-dasharray="3 3"/>
                 <circle cx="20" cy="20" r="12" fill="none" stroke="rgba(34,211,238,0.3)" stroke-width="0.5"/>
               </svg>
-              <svg width="70" height="70" viewBox="0 0 40 40" style="position:absolute;top:0;left:0;">
+              <svg width="70" height="70" viewBox="0 0 40 40" style="position: absolute; top: 0; left: 0;">
                 <line x1="20" y1="2" x2="20" y2="10" stroke="#22d3ee" stroke-width="1.5"/>
                 <line x1="20" y1="30" x2="20" y2="38" stroke="#22d3ee" stroke-width="1.5"/>
                 <line x1="2" y1="20" x2="10" y2="20" stroke="#22d3ee" stroke-width="1.5"/>
