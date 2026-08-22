@@ -311,6 +311,9 @@ export default function CinematicEarth() {
     const periodMins = Math.ceil((2 * Math.PI) / lockedSatellite.satrec.no);
     const steps = Math.min(periodMins, 360);
     const stepSize = periodMins / steps;
+    
+    let prevLng = null;
+    let lngOffset = 0;
 
     for (let i = 0; i <= steps; i++) {
       const d = new Date(baseDate.getTime() + i * stepSize * 60000);
@@ -318,9 +321,20 @@ export default function CinematicEarth() {
         const pv = satellite.propagate(lockedSatellite.satrec, d);
         if (pv.position) {
           const gd = satellite.eciToGeodetic(pv.position, satellite.gstime(d));
+          const rawLng = satellite.degreesLong(gd.longitude);
+          
+          if (prevLng !== null) {
+            const delta = rawLng - prevLng;
+            if (delta > 180) lngOffset -= 360;
+            else if (delta < -180) lngOffset += 360;
+          }
+          
+          prevLng = rawLng;
+          const finalLng = rawLng + lngOffset;
+
           pathCoords.push([
             satellite.degreesLat(gd.latitude),
-            satellite.degreesLong(gd.longitude),
+            finalLng,
             gd.height / 6371.0
           ]);
         }
