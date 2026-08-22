@@ -304,6 +304,17 @@ export default function CinematicEarth() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // Track mouse coordinates efficiently for the tooltip DOM
+  useEffect(() => {
+    const trackMouse = (e) => {
+      if (tooltipRef.current) {
+        tooltipRef.current.style.transform = `translate(${e.clientX + 15}px, ${e.clientY + 15}px)`;
+      }
+    };
+    window.addEventListener('mousemove', trackMouse);
+    return () => window.removeEventListener('mousemove', trackMouse);
+  }, []);
+
   // 5. Interaction & Custom Raycasting (Bulletproof)
   useEffect(() => {
     let downPos = { x: 0, y: 0 };
@@ -321,11 +332,7 @@ export default function CinematicEarth() {
       }
     };
 
-    const onMouseMove = (e) => {
-      if (tooltipRef.current) {
-        tooltipRef.current.style.transform = `translate(${e.clientX + 15}px, ${e.clientY + 15}px)`;
-      }
-
+    const raycastSwarm = (e) => {
       if (hoveredThreatRef.current) {
         setHoveredSat(hoveredThreatRef.current);
         document.body.style.cursor = 'pointer';
@@ -361,11 +368,11 @@ export default function CinematicEarth() {
 
     window.addEventListener('pointerdown', onPointerDown);
     window.addEventListener('pointerup', onPointerUp);
-    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mousemove', raycastSwarm);
     return () => {
       window.removeEventListener('pointerdown', onPointerDown);
       window.removeEventListener('pointerup', onPointerUp);
-      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mousemove', raycastSwarm);
       document.body.style.cursor = 'default';
     };
   }, []);
@@ -389,6 +396,10 @@ export default function CinematicEarth() {
       const geometry = new THREE.BufferGeometry();
       const positions = new Float32Array(MAX_SWARM_SATS * 3);
       geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      
+      // CRITICAL FIX: The raycaster needs a valid bounding sphere to process intersections!
+      // Since our points are dynamically moving around the Earth (radius 100), a fixed radius of 200 covers all LEO/MEO objects.
+      geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0, 0), 200);
       
       // Made swarm bright solid cyan and larger
       const material = new THREE.PointsMaterial({
@@ -499,6 +510,10 @@ export default function CinematicEarth() {
         }}
         onObjectHover={(obj) => {
           hoveredThreatRef.current = obj || null;
+          if (obj) {
+            setHoveredSat(obj);
+            document.body.style.cursor = 'pointer';
+          }
         }}
         
         ringsData={ringsData}
