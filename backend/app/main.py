@@ -22,7 +22,7 @@ app = FastAPI(
 setup_middlewares(app)
 
 # Include Routers
-app.include_router(health.router, prefix="/health", tags=["System"])
+app.include_router(health.router, prefix=f"{settings.API_V1_STR}/health", tags=["System"])
 app.include_router(objects.router, prefix=f"{settings.API_V1_STR}/objects", tags=["Objects"])
 app.include_router(conjunctions.router, prefix=f"{settings.API_V1_STR}/conjunctions", tags=["Conjunctions"])
 app.include_router(stats.router, prefix=f"{settings.API_V1_STR}/stats", tags=["Stats"])

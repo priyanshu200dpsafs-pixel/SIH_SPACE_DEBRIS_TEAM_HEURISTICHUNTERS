@@ -14,3 +14,4 @@ pydantic-settings
 apscheduler
 greenlet
 anthropic
+aiosqlite
