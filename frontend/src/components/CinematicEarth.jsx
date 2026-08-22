@@ -28,6 +28,7 @@ export default function CinematicEarth() {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [highRiskNames, setHighRiskNames] = useState(new Set());
   const [customLayerArray, setCustomLayerArray] = useState([]);
+  const [dataReady, setDataReady] = useState(false);
 
   // 1. Fetch Conjunctions
   useEffect(() => {
@@ -68,13 +69,14 @@ export default function CinematicEarth() {
         }).filter(Boolean);
         
         allSatsRef.current = parsed;
+        setDataReady(true);
       })
       .catch(e => console.error(e));
   }, []);
 
   // Partition data when highRiskNames or allSats updates
   useEffect(() => {
-    if (allSatsRef.current.length === 0) return;
+    if (!dataReady || allSatsRef.current.length === 0) return;
     
     allSatsRef.current.forEach(sat => {
       sat.isHighRisk = highRiskNames.has(sat.name);
@@ -85,7 +87,9 @@ export default function CinematicEarth() {
     
     // Trigger creation of the custom particle layer
     setCustomLayerArray([{ id: 'ghost-swarm', size: swarmSatsRef.current.length }]);
-  }, [highRiskNames, allSatsRef.current.length]);
+    // Initialize threats so they render immediately
+    setThreatPointsData([...threatSatsRef.current]);
+  }, [highRiskNames, dataReady]);
 
   // Search Logic
   useEffect(() => {
@@ -338,9 +342,9 @@ export default function CinematicEarth() {
           // Tactical, faint, transparent dots
           const material = new THREE.PointsMaterial({
             color: 0x22d3ee,
-            size: 0.3,
+            size: 0.6,
             transparent: true,
-            opacity: 0.15,
+            opacity: 0.4,
             sizeAttenuation: true,
             blending: THREE.AdditiveBlending,
           });
