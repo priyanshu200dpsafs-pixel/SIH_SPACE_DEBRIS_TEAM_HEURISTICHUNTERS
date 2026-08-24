@@ -2,7 +2,8 @@ import React, { useRef, useEffect, useState, useMemo } from 'react';
 import Globe from 'react-globe.gl';
 import * as satellite from 'satellite.js';
 import * as THREE from 'three';
-import { Satellite, Globe as GlobeIcon, RotateCw } from 'lucide-react';
+import { Satellite, Globe as GlobeIcon, RotateCw, SlidersHorizontal } from 'lucide-react';
+import SatellitePanel from './panels/SatellitePanel';
 
 const GLOBE_RADIUS = 100;
 const MAX_SWARM_SATS = 30000;
@@ -30,9 +31,16 @@ export default function CinematicEarth() {
   const [dimensions, setDimensions] = useState({ width: window.innerWidth, height: window.innerHeight });
   const [hoveredSat, setHoveredSat] = useState(null);
   
-  // Toolbar State
+  // Toolbar & Panel State
   const [earthTheme, setEarthTheme] = useState('blue-marble'); // 'blue-marble' | 'night'
   const [showSwarm, setShowSwarm] = useState(true);
+  const [activePanelTab, setActivePanelTab] = useState('info');
+  const [isPanelOpen, setIsPanelOpen] = useState(false);
+  const [filters, setFilters] = useState({
+    selectedOrbits: [],
+    selectedTags: [],
+    debrisFilter: 'Show'
+  });
   
   // Search & Lock State
   const [searchQuery, setSearchQuery] = useState('');
@@ -74,7 +82,22 @@ export default function CinematicEarth() {
             return { 
               name: item.name, 
               norad_id: item.norad_id || "UNKNOWN",
+              intl_designator: item.intl_designator || "UNKNOWN",
               epoch: item.epoch ? new Date(item.epoch).toUTCString() : "EPOCH UNKNOWN",
+              tle_line1: item.tle_line1,
+              tle_line2: item.tle_line2,
+              inclination: item.inclination,
+              raan: item.raan,
+              eccentricity: item.eccentricity,
+              arg_perigee: item.arg_perigee,
+              mean_anomaly: item.mean_anomaly,
+              mean_motion: item.mean_motion,
+              country: item.country,
+              launch_site: item.launch_site,
+              launch_date: item.launch_date,
+              orbit_type: item.orbit_type || 'LEO',
+              satellite_type: item.satellite_type || 'Payload',
+              status: item.status || 'Operational',
               satrec, 
               lat: 0, lng: 0, alt: 0, velocity: 0,
               isHighRisk: false,
@@ -119,6 +142,10 @@ export default function CinematicEarth() {
 
   const lockOnSatellite = (sat) => {
     setLockedSatellite(sat);
+    setIsPanelOpen(true);
+    if (activePanelTab === 'filters') {
+      setActivePanelTab('info');
+    }
     setSearchQuery('');
     setIsDropdownOpen(false);
     if (globeEl.current) {
@@ -130,6 +157,7 @@ export default function CinematicEarth() {
 
   const unlockSatellite = () => {
     setLockedSatellite(null);
+    setIsPanelOpen(false);
     setHtmlElementsData([]);
     if (globeEl.current) {
       globeEl.current.controls().autoRotate = true;
@@ -217,11 +245,56 @@ export default function CinematicEarth() {
         }
       }
 
+      // Filter evaluation function
+      const matchesFilter = (sat) => {
+        if (!sat) return false;
+        
+        // 1. Orbit Filter
+        if (filters.selectedOrbits && filters.selectedOrbits.length > 0) {
+          if (!filters.selectedOrbits.includes(sat.orbit_type)) {
+            return false;
+          }
+        }
+
+        // 2. Tag Filter
+        if (filters.selectedTags && filters.selectedTags.length > 0) {
+          const nameUp = (sat.name || '').toUpperCase();
+          const matchesAnyTag = filters.selectedTags.some(tag => {
+            const tagUp = tag.toUpperCase().replace(/\s+/g, '');
+            const cleanName = nameUp.replace(/\s+/g, '');
+            if (tag === 'Starlink' && nameUp.includes('STARLINK')) return true;
+            if (tag === 'One Web' && (nameUp.includes('ONEWEB') || nameUp.includes('ONE WEB'))) return true;
+            if (tag === 'Space Station' && (nameUp.includes('ISS') || nameUp.includes('TIANGONG') || nameUp.includes('ZARYA') || nameUp.includes('CSS'))) return true;
+            if (tag === 'NAVSTAR' && (nameUp.includes('NAVSTAR') || nameUp.includes('GPS'))) return true;
+            if (tag === 'Weather' && (nameUp.includes('METEOR') || nameUp.includes('NOAA') || nameUp.includes('GOES') || nameUp.includes('HIMAWARI') || nameUp.includes('FENGYUN'))) return true;
+            if (tag === 'Military' && (nameUp.includes('USA ') || nameUp.includes('NROL') || nameUp.includes('COSMOS') || nameUp.includes('YAOGAN'))) return true;
+            return cleanName.includes(tagUp);
+          });
+          if (!matchesAnyTag) return false;
+        }
+
+        // 3. Debris Filter
+        const isDebris = sat.satellite_type === 'Debris' || sat.name?.toUpperCase().includes('DEB') || sat.name?.toUpperCase().includes('R/B');
+        if (filters.debrisFilter === 'Hide' && isDebris) return false;
+        if (filters.debrisFilter === 'Debris only' && !isDebris) return false;
+
+        return true;
+      };
+
       if (swarmPointsRef.current && swarmSatsRef.current.length > 0) {
         const positions = swarmPointsRef.current.geometry.attributes.position.array;
         let idx = 0;
         swarmSatsRef.current.forEach(sat => {
           if (idx >= positions.length) return;
+
+          // Check if satellite matches current filters
+          if (!matchesFilter(sat)) {
+            positions[idx++] = 0;
+            positions[idx++] = 0;
+            positions[idx++] = 0;
+            return;
+          }
+
           try {
             const pos = satellite.propagate(sat.satrec, date).position;
             if (pos) {
@@ -244,10 +317,14 @@ export default function CinematicEarth() {
               sat.alt = alt;
               sat.velocity = Math.sqrt(Math.pow(pos.x, 2) + Math.pow(pos.y, 2) + Math.pow(pos.z, 2)) || 0;
             } else {
-              idx += 3;
+              positions[idx++] = 0;
+              positions[idx++] = 0;
+              positions[idx++] = 0;
             }
           } catch(e) {
-            idx += 3;
+            positions[idx++] = 0;
+            positions[idx++] = 0;
+            positions[idx++] = 0;
           }
         });
         
@@ -317,7 +394,7 @@ export default function CinematicEarth() {
 
     const interval = setInterval(updatePositions, 500);
     return () => clearInterval(interval);
-  }, [highRiskNames, lockedSatellite?.norad_id, dataReady, showSwarm]);
+  }, [highRiskNames, lockedSatellite?.norad_id, dataReady, showSwarm, filters]);
 
   // 4. Custom Orbit Trace via Three.js (Bypasses all react-globe.gl map-wrapping bugs)
   useEffect(() => {
@@ -622,6 +699,16 @@ export default function CinematicEarth() {
         >
           <GlobeIcon size={18} />
         </button>
+        <button 
+          onClick={() => {
+            setActivePanelTab('filters');
+            setIsPanelOpen(prev => !prev || activePanelTab !== 'filters');
+          }}
+          className={`p-2 rounded-md transition-colors mx-1 ${isPanelOpen && activePanelTab === 'filters' ? 'text-white bg-slate-700/50' : 'text-slate-400 hover:text-white hover:bg-slate-700/30'}`}
+          title="Toggle Global Filters"
+        >
+          <SlidersHorizontal size={18} />
+        </button>
         
         <div className="w-px h-6 bg-slate-700/50 mx-1"></div>
         
@@ -748,88 +835,21 @@ export default function CinematicEarth() {
         )}
       </div>
 
-      {/* TACTICAL TELEMETRY HUD */}
-      {lockedSatellite && (
-        <div className="absolute top-6 right-6 z-[100] w-[340px] animate-slideUp pointer-events-none">
-          <div className="glass-panel-bright p-5 pointer-events-auto">
-            {/* Header */}
-            <div className="flex justify-between items-start mb-4 pb-3 border-b border-white/[0.06]">
-              <div>
-                <div className="flex items-center space-x-2 mb-1.5">
-                  <div className="w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(255,0,85,0.8)]">
-                    <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping"></div>
-                  </div>
-                  <span className="text-red-400 font-mono text-[9px] uppercase font-bold tracking-[0.2em]">TARGET LOCKED</span>
-                </div>
-                <h2 className="text-white font-bold tracking-wider uppercase text-lg leading-tight">{lockedSatellite.name}</h2>
-                <div className="text-cyan-400/70 font-mono text-[10px] mt-1 tracking-wider">NORAD {lockedSatellite.norad_id}</div>
-              </div>
-              <button 
-                onClick={unlockSatellite} 
-                className="text-slate-600 hover:text-white transition-colors text-lg font-light px-1 hover:bg-white/5 rounded"
-              >
-                ✕
-              </button>
-            </div>
-            
-            {/* Telemetry Grid */}
-            <div className="grid grid-cols-2 gap-3 mb-4 pb-4 border-b border-white/[0.04]">
-              <div>
-                <div className="text-slate-500 text-[9px] uppercase tracking-[0.15em] mb-1">ALTITUDE</div>
-                <div className="text-cyan-100 text-lg font-bold tabular-nums">
-                  {(lockedSatellite.alt * 6371).toFixed(1)} 
-                  <span className="text-slate-500 text-xs font-normal ml-1">km</span>
-                </div>
-              </div>
-              <div>
-                <div className="text-slate-500 text-[9px] uppercase tracking-[0.15em] mb-1">VELOCITY</div>
-                <div className="text-cyan-100 text-lg font-bold tabular-nums">
-                  {lockedSatellite.velocity?.toFixed(2)} 
-                  <span className="text-slate-500 text-xs font-normal ml-1">km/s</span>
-                </div>
-              </div>
-              <div>
-                <div className="text-slate-500 text-[9px] uppercase tracking-[0.15em] mb-1">LATITUDE</div>
-                <div className="text-slate-300 text-sm tabular-nums">{lockedSatellite.lat?.toFixed(4)}°</div>
-              </div>
-              <div>
-                <div className="text-slate-500 text-[9px] uppercase tracking-[0.15em] mb-1">LONGITUDE</div>
-                <div className="text-slate-300 text-sm tabular-nums">{lockedSatellite.lng?.toFixed(4)}°</div>
-              </div>
-            </div>
-
-            {/* Nearest Neighbors */}
-            <div>
-              <div className="text-slate-500 text-[9px] uppercase tracking-[0.15em] mb-2">PROXIMITY THREATS</div>
-              {lockedSatellite.nearest && lockedSatellite.nearest.length > 0 ? (
-                <div className="flex flex-col space-y-1.5">
-                  {lockedSatellite.nearest.map((n, i) => {
-                    let barColor = 'bg-cyan-500/30';
-                    let textColor = 'text-cyan-400';
-                    if (n.dist <= 200) { barColor = 'bg-red-500/30'; textColor = 'text-red-400 font-bold'; }
-                    else if (n.dist <= 1000) { barColor = 'bg-amber-500/30'; textColor = 'text-amber-400'; }
-                    
-                    return (
-                      <div 
-                        key={i} 
-                        className="flex items-center text-[11px] font-mono bg-white/[0.02] rounded overflow-hidden"
-                        style={{ animation: `staggerFadeIn 0.3s ease-out ${i * 0.08}s backwards` }}
-                      >
-                        <div className={`w-1 self-stretch ${barColor}`} />
-                        <div className="flex justify-between items-center w-full px-2.5 py-1.5">
-                          <span className="text-slate-400 truncate max-w-[160px]">{n.target.name}</span>
-                          <span className={textColor}>{n.dist.toFixed(1)} km</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="text-slate-600 text-[10px] font-mono animate-pulse">NO IMMINENT THREATS...</div>
-              )}
-            </div>
-          </div>
-        </div>
+      {/* SATELLITE ANALYTICS & FILTERS PANEL */}
+      {isPanelOpen && (
+        <SatellitePanel
+          sat={lockedSatellite}
+          filters={filters}
+          setFilters={setFilters}
+          activeTab={activePanelTab}
+          setActiveTab={setActivePanelTab}
+          onClose={() => {
+            setIsPanelOpen(false);
+            if (lockedSatellite && activePanelTab !== 'filters') {
+              unlockSatellite();
+            }
+          }}
+        />
       )}
     </div>
   );
