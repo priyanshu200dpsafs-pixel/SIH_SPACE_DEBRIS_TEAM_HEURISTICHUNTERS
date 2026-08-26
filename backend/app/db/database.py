@@ -2,11 +2,16 @@ from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, Asyn
 from sqlalchemy.orm import declarative_base
 from app.core.config import settings
 
+connect_args = {}
+if "neon.tech" in settings.DATABASE_URL or "sslmode=require" in settings.DATABASE_URL or "supabase" in settings.DATABASE_URL:
+    connect_args = {"ssl": True}
+
 engine = create_async_engine(
-    settings.DATABASE_URL,
+    settings.ASYNC_DATABASE_URL,
     echo=False,
     future=True,
     pool_pre_ping=True,
+    connect_args=connect_args
 )
 
 AsyncSessionLocal = async_sessionmaker(

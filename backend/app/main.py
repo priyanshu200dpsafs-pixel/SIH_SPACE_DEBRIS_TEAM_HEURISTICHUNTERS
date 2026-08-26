@@ -32,10 +32,18 @@ app.include_router(copilot.router, prefix=f"{settings.API_V1_STR}/copilot", tags
 app.include_router(globe.router, prefix=f"{settings.API_V1_STR}/globe-data", tags=["Globe"])
 app.include_router(weather.router, prefix=f"{settings.API_V1_STR}/weather", tags=["Weather"])
 
+from app.db.database import engine, Base
+
 scheduler = setup_scheduler()
 
 @app.on_event("startup")
 async def startup_event():
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        logging.info("Database tables initialized successfully.")
+    except Exception as e:
+        logging.error(f"Error initializing database tables: {e}")
     scheduler.start()
     logging.info("Starting up API... APScheduler started.")
 
