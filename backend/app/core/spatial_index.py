@@ -63,31 +63,83 @@ def load_satellites():
 
 def propagate_all(satrecs, target_jd, target_fr):
     coords = []
+    vels = []
     valid_indices = []
     for idx, sat in enumerate(satrecs):
         e, r, v = sat.sgp4(target_jd, target_fr)
         if e == 0:
             coords.append(r)
+            vels.append(v)
             valid_indices.append(idx)
     if len(coords) == 0:
-        return np.array([]), []
-    return np.array(coords), valid_indices
+        return np.array([]), np.array([]), []
+    return np.array(coords), np.array(vels), valid_indices
 
-def find_close_approaches(coords, valid_indices, norad_ids, threshold_km=50.0):
+def find_close_approaches(coords, vels, valid_indices, norad_ids, threshold_km=50.0, changed_indices_set=None, dt_sec=60.0):
     if len(coords) == 0:
         return []
-    tree = cKDTree(coords)
-    pairs = tree.query_pairs(r=threshold_km)
+        
+    full_tree = cKDTree(coords)
+    
+    # Max relative velocity in LEO is ~15 km/s.
+    # To catch objects that pass through each other between timesteps,
+    # we must search with an inflated radius, then do a swept-volume (line segment) check.
+    MAX_REL_V_KM_S = 15.0
+    inflated_threshold = threshold_km + (MAX_REL_V_KM_S * dt_sec)
+    
+    if changed_indices_set is not None and len(changed_indices_set) > 0:
+        changed_coords = []
+        changed_map = []
+        for i, coord in enumerate(coords):
+            if valid_indices[i] in changed_indices_set:
+                changed_coords.append(coord)
+                changed_map.append(i)
+                
+        if not changed_coords:
+            return []
+            
+        changed_tree = cKDTree(changed_coords)
+        matches = changed_tree.query_ball_tree(full_tree, r=inflated_threshold)
+        
+        pairs = []
+        for i_changed, j_full_list in enumerate(matches):
+            i_full = changed_map[i_changed]
+            for j_full in j_full_list:
+                if i_full != j_full:
+                    pairs.append((min(i_full, j_full), max(i_full, j_full)))
+        pairs = list(set(pairs))
+    else:
+        pairs = full_tree.query_pairs(r=inflated_threshold)
     
     results = []
     for i, j in pairs:
-        if i != j:
-            dist = np.linalg.norm(coords[i] - coords[j])
+        r1, r2 = coords[i], coords[j]
+        v1, v2 = vels[i], vels[j]
+        
+        rel_r = r1 - r2
+        rel_v = v1 - v2
+        dist_sq = np.dot(rel_r, rel_r)
+        
+        # Current distance at t=0
+        dist = math.sqrt(dist_sq)
+        min_dist = dist
+        
+        # Check closest approach during the time step [0, dt_sec]
+        v_sq = np.dot(rel_v, rel_v)
+        if v_sq > 0:
+            t_closest = -np.dot(rel_r, rel_v) / v_sq
+            if 0 < t_closest < dt_sec:
+                # Closest approach happens between samples
+                closest_r = rel_r + rel_v * t_closest
+                min_dist = np.linalg.norm(closest_r)
+        
+        if min_dist <= threshold_km:
             orig_i, orig_j = valid_indices[i], valid_indices[j]
             id1, id2 = norad_ids[orig_i], norad_ids[orig_j]
             if id1 > id2:
                 orig_i, orig_j = orig_j, orig_i
-            results.append((orig_i, orig_j, dist))
+            results.append((orig_i, orig_j, min_dist))
+            
     return results
 
 if __name__ == "__main__":
@@ -112,9 +164,9 @@ if __name__ == "__main__":
         jd, fr = jday(target_time.year, target_time.month, target_time.day, 
                       target_time.hour, target_time.minute, 
                       target_time.second + target_time.microsecond * 1e-6)
-        coords, valid_indices = propagate_all(satrecs, jd, fr)
+        coords, vels, valid_indices = propagate_all(satrecs, jd, fr)
         
-        approaches = find_close_approaches(coords, valid_indices, norad_ids, threshold_km=THRESHOLD_KM)
+        approaches = find_close_approaches(coords, vels, valid_indices, norad_ids, threshold_km=THRESHOLD_KM, dt_sec=TIMESTEP_SECONDS)
         
         current_step_pairs = set()
         for orig_i, orig_j, dist in approaches:

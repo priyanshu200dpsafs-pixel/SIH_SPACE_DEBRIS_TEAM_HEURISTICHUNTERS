@@ -377,6 +377,27 @@ if __name__ == "__main__":
     print(f"  Screening complete in {t_screen_end - t_screen_start:.1f}s")
     print(f"  Total merged events: {len(sorted_all)}")
 
+    # ── Phase 1.5: Adaptive Temporal Refinement ──────────────────────────────
+    print(f"\n[Phase 1.5] Adaptive Temporal Refinement (SGP4 Grid Search)...")
+    t_adapt_start = time.perf_counter()
+    from app.core.adaptive_screening import adaptive_sgp4_refinement
+    id_to_sat = {nid: sat for nid, sat in zip(norad_ids, satrecs)}
+    
+    refined_count = 0
+    for ev in sorted_all:
+        sat1 = id_to_sat.get(ev['id1'])
+        sat2 = id_to_sat.get(ev['id2'])
+        if sat1 and sat2:
+            tca_ref, dist_ref = adaptive_sgp4_refinement(sat1, sat2, ev['start_time'], ev['end_time'])
+            ev['tca'] = tca_ref
+            ev['min_dist'] = dist_ref
+            refined_count += 1
+            
+    # Re-sort after refinement
+    sorted_all = sorted(sorted_all, key=lambda e: e['min_dist'])
+    t_adapt_end = time.perf_counter()
+    print(f"  Adaptive Refinement complete for {refined_count} events in {t_adapt_end - t_adapt_start:.1f}s")
+
     # ── Phase 2: Co-Location Classification ──────────────────────────────────
     print(f"\n[Phase 2] Co-location persistence analysis...")
     print(f"  Pairs with min_dist < {COLOCATION_CHECK_THRESHOLD} km: {len(distance_histories)}")
@@ -391,7 +412,17 @@ if __name__ == "__main__":
         if ev['min_dist'] < COLOCATION_CHECK_THRESHOLD and pair_key in distance_histories:
             history = distance_histories[pair_key]
             persistence_verdict = classify_colocation(history)
-            known_verdict_colocated = is_known_colocated(ev['id1'], ev['id2'])
+            
+            rec1 = tle_lookup.get(ev['id1'])
+            rec2 = tle_lookup.get(ev['id2'])
+            obj_id_1 = rec1.get('OBJECT_ID') if rec1 else None
+            obj_id_2 = rec2.get('OBJECT_ID') if rec2 else None
+            
+            known_verdict_colocated = (
+                is_known_colocated(ev['id1'], ev['id2']) or 
+                is_known_formation(ev['id1'], ev['id2']) or 
+                is_same_launch(obj_id_1, obj_id_2)
+            )
 
             # Check for method disagreement
             if persistence_verdict == 'COLOCATED' and not known_verdict_colocated:
@@ -439,7 +470,16 @@ if __name__ == "__main__":
         print(f"\n  Co-located pairs (logged, not discarded):")
         for pk, ev in sorted(colocated_pairs.items(), key=lambda x: x[1]['min_dist']):
             stats = ev['persistence_stats']
-            known = "✓ KNOWN" if is_known_colocated(ev['id1'], ev['id2']) else "  NEW"
+            rec1 = tle_lookup.get(ev['id1'])
+            rec2 = tle_lookup.get(ev['id2'])
+            obj_id_1 = rec1.get('OBJECT_ID') if rec1 else None
+            obj_id_2 = rec2.get('OBJECT_ID') if rec2 else None
+            known_verdict_colocated = (
+                is_known_colocated(ev['id1'], ev['id2']) or 
+                is_known_formation(ev['id1'], ev['id2']) or 
+                is_same_launch(obj_id_1, obj_id_2)
+            )
+            known = "✓ KNOWN" if known_verdict_colocated else "  NEW"
             print(f"    {known} [{ev['id1']}] {ev['name1']} <-> [{ev['id2']}] {ev['name2']}")
             print(f"         mean={stats['mean_km']:.4f}km  std={stats['std_km']:.4f}km  "
                   f"range={stats['range_km']:.4f}km  samples={stats['samples']}")
@@ -452,16 +492,21 @@ if __name__ == "__main__":
             print(f"      mean={md['mean_dist']:.4f}km  std={md['std_dist']:.4f}km  samples={md['samples']}")
 
     # ── Phase 3: Apply threshold filter to genuine conjunctions only ─────────
+    from app.core.config import settings
     MAX_CANDIDATES = 200
-    candidates = [e for e in genuine_conjunctions if e['min_dist'] <= TIGHT_THRESHOLD_KM]
-    if len(candidates) < MAX_CANDIDATES:
-        # Fill up to MAX_CANDIDATES from the sorted genuine list
-        genuine_sorted = sorted(genuine_conjunctions, key=lambda e: e['min_dist'])
-        candidates = genuine_sorted[:max(MAX_CANDIDATES, len(candidates))]
+    HANDOFF_THRESHOLD = settings.SCREENING_STAGE3_HANDOFF_KM
+    
+    # Strictly filter by HANDOFF_THRESHOLD to avoid expensive DOP853 integration
+    candidates = [e for e in genuine_conjunctions if e['min_dist'] <= HANDOFF_THRESHOLD]
+    
+    # Cap at MAX_CANDIDATES for safety, but do NOT fill up to it
+    if len(candidates) > MAX_CANDIDATES:
+        candidates = sorted(candidates, key=lambda e: e['min_dist'])[:MAX_CANDIDATES]
+        
     candidate_count = len(candidates)
 
     print(f"\n[Phase 3] Stage 3 refinement candidates (after co-location filter):")
-    print(f"  Threshold: {TIGHT_THRESHOLD_KM} km")
+    print(f"  Stage-3 Handoff Threshold: {HANDOFF_THRESHOLD} km")
     print(f"  Candidates: {candidate_count}")
 
     # ── Prepare pair data for workers ────────────────────────────────────────

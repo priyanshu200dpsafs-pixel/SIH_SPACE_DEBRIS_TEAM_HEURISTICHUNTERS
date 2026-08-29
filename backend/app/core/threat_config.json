@@ -1,0 +1,22 @@
+{
+  "version": "1.0.0",
+  "weights": {
+    "pc": 0.50,
+    "urgency": 0.20,
+    "miss_distance": 0.15,
+    "kinetic_energy": 0.10,
+    "data_quality": 0.05
+  },
+  "normalization": {
+    "pc_max_threshold": 1e-4,
+    "pc_min_threshold": 1e-9,
+    "urgency_max_hours": 2.0,
+    "urgency_min_hours": 72.0,
+    "miss_distance_max_km": 0.1,
+    "miss_distance_min_km": 5.0,
+    "velocity_max_km_s": 15.0,
+    "velocity_min_km_s": 0.1,
+    "hbr_max_m": 50.0,
+    "hbr_min_m": 1.0
+  }
+}

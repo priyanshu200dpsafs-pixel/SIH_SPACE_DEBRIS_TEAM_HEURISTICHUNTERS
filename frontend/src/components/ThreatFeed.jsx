@@ -1,7 +1,9 @@
-import React from 'react';
-import { AlertTriangle, AlertCircle, CheckCircle, Crosshair } from 'lucide-react';
+import React, { useState } from 'react';
+import { AlertTriangle, AlertCircle, CheckCircle, Crosshair, ChevronDown, ChevronUp, History, TestTube } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import RiskEvolutionChart from './panels/RiskEvolutionChart';
+import WhatIfSandbox from './panels/WhatIfSandbox';
 
 function cn(...inputs) {
   return twMerge(clsx(inputs));
@@ -47,41 +49,42 @@ export default function ThreatFeed({ conjunctions, selectedPairId, onSelectPair 
                   <Crosshair size={14} className={isSelected ? "text-cyan-400" : "text-white/40"} />
                   {c.id}
                 </div>
-                <div className={cn(
-                  "text-xs font-bold px-2 py-0.5 rounded uppercase tracking-wider font-mono",
-                  isHighRisk ? "bg-red-500/20 text-red-400 border border-red-500/30" : "bg-orange-500/20 text-orange-400 border border-orange-500/30"
-                )}>
-                  Pc: {c.pc.toExponential(2)}
-                </div>
+                {c.threat_score !== undefined && c.threat_score !== null ? (
+                  <div className={cn(
+                    "text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider font-mono flex flex-col items-end",
+                    c.risk_category === 'CRITICAL' ? "bg-red-500/20 text-red-400 border border-red-500/30" : 
+                    c.risk_category === 'HIGH' ? "bg-orange-500/20 text-orange-400 border border-orange-500/30" :
+                    c.risk_category === 'ELEVATED' ? "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30" :
+                    "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                  )}>
+                    <span>THREAT SCORE: {c.threat_score.toFixed(1)}</span>
+                    <span className="text-[8px] opacity-80">{c.risk_category} RISK</span>
+                  </div>
+                ) : (
+                  <div className={cn(
+                    "text-xs font-bold px-2 py-0.5 rounded uppercase tracking-wider font-mono",
+                    isHighRisk ? "bg-red-500/20 text-red-400 border border-red-500/30" : "bg-orange-500/20 text-orange-400 border border-orange-500/30"
+                  )}>
+                    Pc: {c.pc.toExponential(2)}
+                  </div>
+                )}
               </div>
               
-              <div className="grid grid-cols-2 gap-2 text-xs text-white/70 font-mono mt-3">
+              <div className="grid grid-cols-3 gap-2 text-xs text-white/70 font-mono mt-3">
                 <div>
-                  <span className="text-white/40 block text-[10px] uppercase">Miss Distance</span>
+                  <span className="text-white/40 block text-[9px] uppercase">Miss Dist</span>
                   {(c.min_dist_km * 1000).toFixed(1)} m
                 </div>
                 <div>
-                  <span className="text-white/40 block text-[10px] uppercase">TCA (UTC)</span>
+                  <span className="text-white/40 block text-[9px] uppercase">TCA (UTC)</span>
                   {new Date(c.tca).toLocaleTimeString('en-US', { hour12: false, timeZone: 'UTC' })}
+                </div>
+                <div>
+                  <span className="text-white/40 block text-[9px] uppercase">Scientific Pc</span>
+                  <span className="text-orange-400 font-bold">{c.pc.toExponential(2)}</span>
                 </div>
               </div>
 
-              {isSelected && c.collision_probability_metrics && (
-                <div className="mt-4 pt-3 border-t border-white/10">
-                  <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider mb-2 text-white/50">
-                    Cross-Validation
-                  </div>
-                  {c.collision_probability_metrics.algorithm_consensus_verified ? (
-                    <div className="flex items-center gap-2 text-green-400 text-xs">
-                      <CheckCircle size={14} /> Consensus Verified (&lt;10% div)
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2 text-red-400 text-xs font-bold">
-                      <AlertCircle size={14} /> Manual Review Req (div {c.collision_probability_metrics.divergence_percentage.toFixed(1)}%)
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
           );
         })}

@@ -118,6 +118,51 @@ export default function InfoTab({ sat }) {
           </div>
         ))}
       </div>
+      
+      {/* Data Quality Engine Section */}
+      <div className="mt-4 border border-slate-800/80 rounded-md overflow-hidden bg-[#0d121f]/70">
+        <div className="bg-slate-800/50 px-3 py-2 text-[10px] font-bold text-slate-300 uppercase tracking-widest border-b border-slate-800/80">
+          Data Quality Engine
+        </div>
+        <div className="p-3 grid grid-cols-2 gap-y-2 gap-x-4">
+          <div>
+            <span className="block text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Quality Grade</span>
+            <span className={`inline-block px-2 py-0.5 rounded font-bold text-xs ${
+              sat.data_quality_grade === 'A' ? 'bg-green-500/20 text-green-400 border border-green-500/30' :
+              sat.data_quality_grade === 'B' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' :
+              sat.data_quality_grade === 'C' ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30' :
+              sat.data_quality_grade === 'D' ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
+              'bg-slate-700/50 text-slate-300 border border-slate-600'
+            }`}>
+              {sat.data_quality_grade || 'UNRATED'}
+            </span>
+          </div>
+          <div>
+            <span className="block text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Score</span>
+            <span className="font-mono text-xs text-slate-300">{sat.data_quality_score ? `${sat.data_quality_score}/100` : 'N/A'}</span>
+          </div>
+          <div>
+            <span className="block text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Data Source</span>
+            <span className="font-mono text-xs text-sky-400">{sat.source || 'Space-Track / CelesTrak'}</span>
+          </div>
+          <div>
+            <span className="block text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Data Age</span>
+            <span className="font-mono text-xs text-slate-300">{sat.tle_age_hours ? `${sat.tle_age_hours} hours` : 'N/A'}</span>
+          </div>
+          <div className="col-span-2 mt-1">
+            <span className="block text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Quality Statement</span>
+            <span className="font-sans text-[11px] text-slate-400 leading-tight">
+              Grade {sat.data_quality_grade || 'U'} indicates {
+                sat.data_quality_grade === 'A' ? 'high-confidence fresh telemetry' :
+                sat.data_quality_grade === 'B' ? 'acceptable telemetry suitable for propagation' :
+                sat.data_quality_grade === 'C' ? 'stale telemetry; accuracy degraded' :
+                sat.data_quality_grade === 'D' ? 'highly unreliable telemetry; requires manual review' :
+                'unrated'
+              }.
+            </span>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

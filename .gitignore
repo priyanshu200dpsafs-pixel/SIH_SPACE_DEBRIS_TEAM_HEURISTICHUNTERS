@@ -1,9 +1,12 @@
 node_modules/
 __pycache__/
 .venv/
+venv/
 .env
 *.pth
 *.h5
+*.db
+*.log
 backend/app/data/cache/*
 frontend/dist/
 .DS_Store

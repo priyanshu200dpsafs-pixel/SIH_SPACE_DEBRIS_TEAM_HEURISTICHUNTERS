@@ -343,6 +343,107 @@ def compute_foster_2d_pc(
 
     return pc, diagnostics
 
+def compute_formal_risk_estimate(
+    r1: np.ndarray,
+    v1: np.ndarray,
+    r2: np.ndarray,
+    v2: np.ndarray,
+    cov_rtn1: np.ndarray,
+    cov_rtn2: np.ndarray,
+    hbr: float,
+    covariance_source: str = "Empirical TLE"
+) -> Tuple[float, Dict[str, Any]]:
+    """
+    Formal Risk Estimation Layer.
+    Calculates Pc using Foster and Chan, evaluates sensitivity to empirical covariance,
+    and reports bounded estimates with uncertainty confidence.
+    """
+    # 1. Nominal Pc Calculation
+    pc_nominal, diag = compute_foster_2d_pc(r1, v1, r2, v2, cov_rtn1, cov_rtn2, hbr)
+    
+    sigma_x_m = diag['sigma_x_m']
+    sigma_y_m = diag['sigma_y_m']
+    x0_m = diag['x0_m']
+    y0_m = diag['y0_m']
+    miss_m = diag['miss_distance_m']
+    
+    # Probability Dilution Defense
+    # If the combined uncertainty is pathologically huge (>20km 1-sigma), 
+    # the 2D Gaussian flattens out, falsely driving Pc -> 0.0 even for a dead-on collision.
+    if sigma_x_m > 20000.0 or sigma_y_m > 20000.0:
+        diag['pc'] = -1.0
+        diag['pc_scientific'] = 'INVALID'
+        diag['pc_lower'] = 0.0
+        diag['pc_upper'] = 0.0
+        diag['sensitivity_score'] = 100.0
+        diag['uncertainty_confidence'] = "CRITICAL FAILURE"
+        diag['foster_chan_agreement'] = 0.0
+        diag['uncertainty_explanation'] = "INVALID_STALE_TLE: Covariance is pathologically dilated (>20km 1-sigma), leading to false safety via probability dilution."
+        diag['covariance_source'] = covariance_source
+        return -1.0, diag
+    
+    # 2. Chan Analytical Cross-Check
+    log10_chan = calculate_pc_chan_log10(x0_m, y0_m, sigma_x_m, sigma_y_m, hbr)
+    
+    # Foster vs Chan Agreement (difference in log10 orders of magnitude)
+    foster_chan_agreement = abs(diag['log10_pc'] - log10_chan) if diag['log10_pc'] > -300 and log10_chan > -300 else 0.0
+    diag['foster_chan_agreement'] = round(foster_chan_agreement, 3)
+
+    # 3. Sensitivity Analysis (Perturb covariance)
+    # Factor 0.5 (Underestimated covariance)
+    scale_down = 0.5
+    log10_pc_lower = foster_2d_polar_fast_log10(miss_m, hbr, sigma_x_m * math.sqrt(scale_down), sigma_y_m * math.sqrt(scale_down))
+    
+    # Factor 2.0 (Overestimated covariance)
+    scale_up = 2.0
+    log10_pc_upper = foster_2d_polar_fast_log10(miss_m, hbr, sigma_x_m * math.sqrt(scale_up), sigma_y_m * math.sqrt(scale_up))
+    
+    # Notice: A smaller covariance could INCREASE Pc if the miss distance is small (probability mass concentrates), 
+    # or DECREASE Pc if miss distance is large (probability mass pulls away from HBR).
+    # Therefore, "upper" and "lower" bound naming refers to the mathematical min/max, not the scale factor.
+    pc_bound_1 = 10 ** log10_pc_lower if log10_pc_lower > -300 else 0.0
+    pc_bound_2 = 10 ** log10_pc_upper if log10_pc_upper > -300 else 0.0
+    
+    pc_lower = min(pc_bound_1, pc_bound_2)
+    pc_upper = max(pc_bound_1, pc_bound_2)
+    
+    # Ensure nominal is generally between them, though numerical artifacts might push it slightly outside.
+    pc_lower = min(pc_lower, pc_nominal)
+    pc_upper = max(pc_upper, pc_nominal)
+    
+    sensitivity_score = log10_pc_upper - log10_pc_lower if (log10_pc_upper > -300 and log10_pc_lower > -300) else 0.0
+    
+    # 4. Uncertainty Confidence & Explanation
+    uncertainty_confidence = "HIGH CONFIDENCE"
+    explanation = "Operational covariance provided. High confidence in Pc estimate."
+    
+    if covariance_source == "Empirical TLE":
+        if sensitivity_score > 2.0:
+            uncertainty_confidence = "HIGH UNCERTAINTY"
+            explanation = "Pc is highly sensitive (> 2 orders of magnitude variance) to assumed empirical drag/covariance errors. This is a generic TLE-derived estimate without formal operational covariance."
+        elif sensitivity_score > 0.5:
+            uncertainty_confidence = "MODERATE UNCERTAINTY"
+            explanation = "Pc varies somewhat with assumed empirical covariance. Estimate is based on TLEs without formal operational covariance."
+        else:
+            uncertainty_confidence = "MODERATE CONFIDENCE"
+            explanation = "Pc is stable across assumed covariance errors, but still relies on generic TLE-derived empirical covariance."
+            
+    # If the miss distance is extremely small and nominal Pc is high, 
+    # even empirical covariance might be moderately confident it's a close approach.
+    if pc_nominal > 1e-4 and miss_m < 100:
+        if uncertainty_confidence == "HIGH UNCERTAINTY":
+            uncertainty_confidence = "MODERATE UNCERTAINTY"
+            explanation += " (Close miss distance provides some geometric confidence)."
+
+    diag['pc_lower'] = pc_lower
+    diag['pc_upper'] = pc_upper
+    diag['sensitivity_score'] = round(sensitivity_score, 3)
+    diag['uncertainty_confidence'] = uncertainty_confidence
+    diag['uncertainty_explanation'] = explanation
+    diag['covariance_source'] = covariance_source
+
+    return pc_nominal, diag
+
 
 # ── 5. FAST 2D POLAR QUADRATURE (LOG-SPACE FOR NUMERICAL STABILITY) ──────────
 def foster_2d_polar_fast(
@@ -611,3 +712,81 @@ if __name__ == '__main__':
     print("Backtest Validation Results against historical_cdms.json:")
     for k, v in bt.items():
         print(f"  {k}: {v}")
+
+# ── 8. MONTE CARLO Pc VALIDATION (INDEPENDENT VERIFICATION) ─────────────────
+def run_monte_carlo_validation(
+    miss_dist_m: float,
+    hbr_m: float,
+    sigma_x_m: float,
+    sigma_y_m: float,
+    foster_pc: float,
+    miss_angle_rad: float = math.pi / 4.0,
+    num_samples: int = 100000,
+    seed: int = 42
+) -> Dict[str, Any]:
+    """
+    Independent Monte Carlo validation of analytical Pc.
+    Constructs the 2D relative state uncertainty on the B-plane and evaluates HBR intersection.
+    """
+    import time
+    start_time = time.perf_counter()
+    
+    np.random.seed(seed)
+    
+    x0 = miss_dist_m * math.cos(miss_angle_rad)
+    y0 = miss_dist_m * math.sin(miss_angle_rad)
+    
+    # Generate 2D Gaussian samples
+    samples_x = np.random.normal(x0, sigma_x_m, num_samples)
+    samples_y = np.random.normal(y0, sigma_y_m, num_samples)
+    
+    # Calculate distance to origin (0,0) for each sample
+    dist_sq = samples_x**2 + samples_y**2
+    hbr_sq = hbr_m**2
+    
+    # Count collisions
+    collisions = np.sum(dist_sq <= hbr_sq)
+    
+    mc_pc = float(collisions) / num_samples
+    
+    # Confidence Interval (95%) using normal approximation
+    # If collisions is 0, we can use the rule of 3 for upper bound (3 / N)
+    if collisions == 0:
+        ci_str = f"[0.0, {3.0 / num_samples:.2e}]"
+    else:
+        margin = 1.96 * math.sqrt((mc_pc * (1.0 - mc_pc)) / num_samples)
+        ci_lower = max(0.0, mc_pc - margin)
+        ci_upper = min(1.0, mc_pc + margin)
+        ci_str = f"[{ci_lower:.2e}, {ci_upper:.2e}]"
+    
+    # Evaluate agreement
+    if mc_pc == 0.0 and foster_pc < (1.0 / num_samples):
+        # Both predict essentially zero at this sample resolution
+        status = "AGREE"
+    elif mc_pc == 0.0:
+        # MC is 0 but foster is high enough that we should have seen it
+        status = "SIGNIFICANT DIVERGENCE"
+    elif foster_pc == 0.0:
+        status = "SIGNIFICANT DIVERGENCE"
+    else:
+        log_mc = math.log10(mc_pc)
+        log_foster = math.log10(foster_pc)
+        diff = abs(log_mc - log_foster)
+        
+        if diff <= 0.5:
+            status = "AGREE"
+        elif diff <= 1.0:
+            status = "MINOR DIVERGENCE"
+        else:
+            status = "SIGNIFICANT DIVERGENCE"
+            
+    elapsed = time.perf_counter() - start_time
+    
+    return {
+        'mc_pc': mc_pc,
+        'mc_confidence_interval': ci_str,
+        'mc_sample_count': num_samples,
+        'mc_validation_status': status,
+        'mc_seed': seed,
+        'mc_runtime_ms': round(elapsed * 1000.0, 2)
+    }
