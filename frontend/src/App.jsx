@@ -39,7 +39,7 @@ export default function App() {
         <div className="absolute inset-0 z-10 pointer-events-none flex justify-between">
           
           {/* LEFT PANEL: Threat Feed */}
-          <div className="pointer-events-auto shadow-2xl shadow-black/80">
+          <div className="pointer-events-auto shadow-2xl shadow-black/80 h-full">
             <ThreatFeed 
               conjunctions={conjunctions} 
               selectedPairId={selectedConjunctionId}
@@ -48,7 +48,7 @@ export default function App() {
           </div>
 
           {/* RIGHT PANEL: Event Intelligence */}
-          <div className="pointer-events-auto shadow-2xl shadow-black/80">
+          <div className="pointer-events-auto shadow-2xl shadow-black/80 h-full">
             <EventIntelligencePanel 
               conjunction={selectedConjunction} 
             />

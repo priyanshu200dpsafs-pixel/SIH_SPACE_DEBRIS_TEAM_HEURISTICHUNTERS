@@ -57,7 +57,7 @@ export default function CinematicEarth() {
 
   // 1. Fetch Conjunctions
   useEffect(() => {
-    fetch('http://127.0.0.1:8000/api/v1/conjunctions?page=1&size=50')
+    fetch('/api/v1/conjunctions?page=1&size=50')
       .then(r => r.json())
       .then(data => {
         const names = new Set();
@@ -73,7 +73,7 @@ export default function CinematicEarth() {
 
   // 2. Fetch TLEs
   useEffect(() => {
-    fetch('http://127.0.0.1:8000/api/v1/globe-data')
+    fetch('/api/v1/globe-data')
       .then(r => r.json())
       .then(data => {
         const parsed = data.items.map(item => {
