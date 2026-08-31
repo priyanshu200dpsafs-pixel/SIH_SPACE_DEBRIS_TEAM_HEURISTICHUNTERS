@@ -72,12 +72,18 @@ export default function TopNav({ onOpenTrustView, activeTab = '3d-radar', onTabC
 
   // Format last sync time string
   const formatLastSync = (isoStr) => {
-    if (!isoStr) return 'SYNCING...';
+    if (!isoStr) return 'AWAITING DATA';
     try {
       const d = new Date(isoStr);
-      return d.toISOString().substring(11, 16) + ' UTC';
+      if (isNaN(d.getTime())) return 'AWAITING DATA';
+      // Show date + time for clarity
+      const month = (d.getUTCMonth() + 1).toString().padStart(2, '0');
+      const day = d.getUTCDate().toString().padStart(2, '0');
+      const hours = d.getUTCHours().toString().padStart(2, '0');
+      const mins = d.getUTCMinutes().toString().padStart(2, '0');
+      return `${month}-${day} ${hours}:${mins} UTC`;
     } catch {
-      return 'RECENT';
+      return 'AWAITING DATA';
     }
   };
 
