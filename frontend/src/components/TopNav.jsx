@@ -1,7 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldCheck, RefreshCw, Clock } from 'lucide-react';
+import { ShieldCheck, RefreshCw, Clock, Radar, Grid3x3, Target, Wrench, Sun, Sparkles } from 'lucide-react';
 
-export default function TopNav({ onOpenTrustView }) {
+const NAV_TABS = [
+  { id: '3d-radar', label: '3D RADAR', icon: Radar },
+  { id: 'threat-matrix', label: 'THREAT MATRIX', icon: Grid3x3 },
+  { id: 'b-plane', label: 'B-PLANE', icon: Target },
+  { id: 'cam-solver', label: 'CAM SOLVER', icon: Wrench },
+  { id: 'solar-wx', label: 'SOLAR WX', icon: Sun },
+  { id: 'ai-copilot', label: 'AI COPILOT', icon: Sparkles },
+];
+
+export default function TopNav({ onOpenTrustView, activeTab = '3d-radar', onTabChange }) {
   const [time, setTime] = useState("");
   const [satCount, setSatCount] = useState(0);
   const [threatCount, setThreatCount] = useState(0);
@@ -87,22 +96,30 @@ export default function TopNav({ onOpenTrustView }) {
           </h1>
         </div>
 
-        {/* Telemetry Stats + Data Cycle Cadence */}
-        <div className="flex items-center space-x-5 mx-4">
-          <div className="flex items-center space-x-2">
-            <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_rgba(34,211,238,0.8)]"></div>
-            <span className="text-slate-400 font-mono text-[10px] uppercase tracking-widest">TRACKING</span>
-            <span className="text-cyan-300 font-mono text-sm font-bold tabular-nums">{satCount.toLocaleString()}</span>
-          </div>
-          <div className="w-px h-4 bg-white/10" />
-          <div className="flex items-center space-x-2">
-            <div className="w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_6px_rgba(255,0,85,0.8)] animate-pulse"></div>
-            <span className="text-slate-400 font-mono text-[10px] uppercase tracking-widest">CONJUNCTIONS</span>
-            <span className="text-red-400 font-mono text-sm font-bold tabular-nums">{threatCount}</span>
-          </div>
-          
-          <div className="w-px h-4 bg-white/10 hidden md:block" />
+        {/* Navigation Tabs */}
+        <div className="flex items-center space-x-1 mx-4">
+          {NAV_TABS.map(tab => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => onTabChange?.(tab.id)}
+                className={`flex items-center space-x-1.5 px-3 py-1 rounded text-[10px] font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer ${
+                  isActive
+                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-[0_0_8px_rgba(34,211,238,0.15)]'
+                    : 'text-slate-500 hover:text-slate-300 hover:bg-white/5 border border-transparent'
+                }`}
+              >
+                <Icon size={12} className={isActive ? 'text-cyan-400' : ''} />
+                <span className="hidden xl:inline">{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
 
+        {/* Right side: Clock + Sync + Status */}
+        <div className="flex items-center space-x-3 shrink-0">
           {/* LAST DATA SYNC */}
           <div className="hidden md:flex items-center space-x-2 bg-white/[0.03] border border-white/10 px-2.5 py-0.5 rounded text-xs" title={`Full sync timestamp: ${healthData?.last_pipeline_run || 'N/A'}`}>
             <Clock size={11} className="text-slate-400" />
@@ -120,10 +137,7 @@ export default function TopNav({ onOpenTrustView }) {
               {countdownStr || 'CALCULATING...'}
             </span>
           </div>
-        </div>
 
-        {/* Right side: Clock + Status + Trust Button */}
-        <div className="flex items-center space-x-3 shrink-0">
           <div className="text-amber-400/90 font-mono text-[11px] tracking-wider tabular-nums hidden sm:block">
             {time}
           </div>
@@ -139,6 +153,23 @@ export default function TopNav({ onOpenTrustView }) {
             <span className="text-emerald-400 text-[10px] uppercase tracking-wider font-semibold">LIVE</span>
           </div>
         </div>
+      </div>
+
+      {/* Telemetry Stats Bar */}
+      <div className="flex items-center px-4 h-7 bg-black/40 border-t border-white/[0.03] space-x-5">
+        <div className="flex items-center space-x-2">
+          <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_rgba(34,211,238,0.8)]"></div>
+          <span className="text-slate-400 font-mono text-[10px] uppercase tracking-widest">TRACKING</span>
+          <span className="text-cyan-300 font-mono text-sm font-bold tabular-nums">{satCount.toLocaleString()}</span>
+        </div>
+        <div className="w-px h-3 bg-white/10" />
+        <div className="flex items-center space-x-2">
+          <div className="w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_6px_rgba(255,0,85,0.8)] animate-pulse"></div>
+          <span className="text-slate-400 font-mono text-[10px] uppercase tracking-widest">CONJUNCTIONS</span>
+          <span className="text-red-400 font-mono text-sm font-bold tabular-nums">{threatCount}</span>
+        </div>
+        <div className="flex-1" />
+        <span className="text-slate-600 font-mono text-[9px] uppercase tracking-widest hidden md:block">LEO · MEO · GEO FULL SPECTRUM</span>
       </div>
 
       {/* Bottom glow line */}
