@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState, useMemo } from 'react';
 import Globe from 'react-globe.gl';
 import * as satellite from 'satellite.js';
 import * as THREE from 'three';
-import { Satellite, Globe as GlobeIcon, RotateCw, SlidersHorizontal } from 'lucide-react';
+import { Satellite, Globe as GlobeIcon, RotateCw, SlidersHorizontal, Play, Pause, Compass, Orbit } from 'lucide-react';
 import SatellitePanel from './panels/SatellitePanel';
 
 const GLOBE_RADIUS = 100;
@@ -34,6 +34,7 @@ export default function CinematicEarth({ selectedConjunction }) {
   // Toolbar & Panel State
   const [earthTheme, setEarthTheme] = useState('blue-marble'); // 'blue-marble' | 'night'
   const [showSwarm, setShowSwarm] = useState(true);
+  const [autoRotate, setAutoRotate] = useState(false); // Default to manual free rotation so it doesn't fight the user
   const [activePanelTab, setActivePanelTab] = useState('info');
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [filters, setFilters] = useState({
@@ -215,8 +216,10 @@ export default function CinematicEarth({ selectedConjunction }) {
     setIsPanelOpen(false);
     setHtmlElementsData([]);
     if (globeEl.current) {
-      globeEl.current.controls().autoRotate = true;
-      globeEl.current.pointOfView({ altitude: 2.5 }, 1000);
+      if (autoRotate) {
+        globeEl.current.controls().autoRotate = true;
+      }
+      globeEl.current.pointOfView({ altitude: 2.2 }, 1000);
     }
   };
 
@@ -226,13 +229,39 @@ export default function CinematicEarth({ selectedConjunction }) {
     }
   }, [lockedSatellite]);
 
+  // Sync auto-rotation state with controls
+  useEffect(() => {
+    if (globeEl.current) {
+      const controls = globeEl.current.controls();
+      if (controls) {
+        controls.autoRotate = autoRotate;
+        controls.autoRotateSpeed = 0.4;
+      }
+    }
+  }, [autoRotate]);
+
   // Toolbar Actions
   const toggleTheme = () => setEarthTheme(prev => prev === 'blue-marble' ? 'night' : 'blue-marble');
   const toggleSwarm = () => setShowSwarm(prev => !prev);
+  const toggleAutoRotate = () => setAutoRotate(prev => !prev);
+  const viewNorthPole = () => {
+    if (globeEl.current) {
+      globeEl.current.controls().autoRotate = false;
+      setAutoRotate(false);
+      globeEl.current.pointOfView({ lat: 89.9, lng: 0, altitude: 2.0 }, 900);
+    }
+  };
+  const viewSouthPole = () => {
+    if (globeEl.current) {
+      globeEl.current.controls().autoRotate = false;
+      setAutoRotate(false);
+      globeEl.current.pointOfView({ lat: -89.9, lng: 0, altitude: 2.0 }, 900);
+    }
+  };
   const resetCamera = () => {
     unlockSatellite();
     if (globeEl.current) {
-      globeEl.current.pointOfView({ lat: 0, lng: 0, altitude: 2.5 }, 1000);
+      globeEl.current.pointOfView({ lat: 0, lng: 0, altitude: 2.2 }, 1000);
     }
   };
 
@@ -666,14 +695,24 @@ export default function CinematicEarth({ selectedConjunction }) {
 
       const controls = globeEl.current.controls();
       if (controls) {
-        controls.autoRotate = true;
-        controls.autoRotateSpeed = 0.35;
+        controls.autoRotate = false; // Manual free rotation by default
+        controls.autoRotateSpeed = 0.4;
+        controls.enableRotate = true;
+        controls.rotateSpeed = 1.1;
         controls.enableZoom = true;
-        controls.zoomSpeed = 0.8;
+        controls.zoomSpeed = 1.0;
+        controls.enablePan = true;
+        controls.panSpeed = 0.8;
+        controls.screenSpacePanning = true;
         controls.enableDamping = true;
-        controls.dampingFactor = 0.1;
+        controls.dampingFactor = 0.08;
+        controls.minDistance = 101;
+        controls.maxDistance = 1500;
+        // Unclamp polar rotation so you can freely rotate directly over poles and any angle
+        controls.minPolarAngle = 0.001;
+        controls.maxPolarAngle = Math.PI - 0.001;
       }
-      globeEl.current.pointOfView({ altitude: 2.5 });
+      globeEl.current.pointOfView({ altitude: 2.2 });
     };
 
     initThreeJS();
@@ -745,40 +784,68 @@ export default function CinematicEarth({ selectedConjunction }) {
       </div>
 
       {/* Toolbar Layer */}
-      <div className="absolute top-6 left-1/2 -translate-x-1/2 z-40 flex items-center bg-[#0d121f]/95 border border-cyan-500/30 rounded-lg shadow-2xl backdrop-blur-xl px-2 py-1.5 gap-1">
+      <div className="absolute top-6 left-1/2 -translate-x-1/2 z-40 flex items-center bg-[#0d121f]/95 border border-cyan-500/30 rounded-xl shadow-2xl backdrop-blur-xl px-2.5 py-1.5 gap-1.5">
+        <button 
+          onClick={toggleAutoRotate}
+          className={`p-2.5 rounded-lg transition-colors cursor-pointer ${autoRotate ? 'text-cyan-300 bg-cyan-950/60 border border-cyan-500/50 shadow-[0_0_12px_rgba(34,211,238,0.3)]' : 'text-slate-400 hover:text-white hover:bg-white/10'}`}
+          title={autoRotate ? "Pause Auto-Rotation (Freeze Angle)" : "Start Auto-Rotation"}
+        >
+          {autoRotate ? <Pause size={19} /> : <Play size={19} />}
+        </button>
+
         <button 
           onClick={toggleSwarm}
-          className={`p-2.5 rounded-md transition-colors ${showSwarm ? 'text-cyan-300 bg-cyan-950/60 border border-cyan-500/40 shadow-[0_0_10px_rgba(34,211,238,0.2)]' : 'text-slate-400 hover:text-white hover:bg-white/10'}`}
+          className={`p-2.5 rounded-lg transition-colors cursor-pointer ${showSwarm ? 'text-cyan-300 bg-cyan-950/60 border border-cyan-500/40 shadow-[0_0_10px_rgba(34,211,238,0.2)]' : 'text-slate-400 hover:text-white hover:bg-white/10'}`}
           title="Toggle Satellite Swarm"
         >
-          <Satellite size={20} />
+          <Satellite size={19} />
         </button>
+
         <button 
           onClick={toggleTheme}
-          className={`p-2.5 rounded-md transition-colors ${earthTheme === 'night' ? 'text-cyan-300 bg-cyan-950/60 border border-cyan-500/40 shadow-[0_0_10px_rgba(34,211,238,0.2)]' : 'text-slate-400 hover:text-white hover:bg-white/10'}`}
+          className={`p-2.5 rounded-lg transition-colors cursor-pointer ${earthTheme === 'night' ? 'text-cyan-300 bg-cyan-950/60 border border-cyan-500/40 shadow-[0_0_10px_rgba(34,211,238,0.2)]' : 'text-slate-400 hover:text-white hover:bg-white/10'}`}
           title="Toggle Earth View (Day/Night)"
         >
-          <GlobeIcon size={20} />
+          <GlobeIcon size={19} />
         </button>
+
         <button 
           onClick={() => {
             setActivePanelTab('filters');
             setIsPanelOpen(prev => !prev || activePanelTab !== 'filters');
           }}
-          className={`p-2.5 rounded-md transition-colors ${isPanelOpen && activePanelTab === 'filters' ? 'text-cyan-300 bg-cyan-950/60 border border-cyan-500/40 shadow-[0_0_10px_rgba(34,211,238,0.2)]' : 'text-slate-400 hover:text-white hover:bg-white/10'}`}
+          className={`p-2.5 rounded-lg transition-colors cursor-pointer ${isPanelOpen && activePanelTab === 'filters' ? 'text-cyan-300 bg-cyan-950/60 border border-cyan-500/40 shadow-[0_0_10px_rgba(34,211,238,0.2)]' : 'text-slate-400 hover:text-white hover:bg-white/10'}`}
           title="Toggle Global Filters"
         >
-          <SlidersHorizontal size={20} />
+          <SlidersHorizontal size={19} />
         </button>
         
-        <div className="w-px h-6 bg-white/20 mx-1"></div>
+        <div className="w-px h-6 bg-white/20 mx-0.5"></div>
+
+        {/* Quick Camera Angle Presets */}
+        <button 
+          onClick={viewNorthPole}
+          className="px-2.5 py-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors text-xs font-mono font-bold uppercase cursor-pointer"
+          title="Top-Down North Pole View"
+        >
+          North
+        </button>
+        <button 
+          onClick={viewSouthPole}
+          className="px-2.5 py-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors text-xs font-mono font-bold uppercase cursor-pointer"
+          title="Bottom-Up South Pole View"
+        >
+          South
+        </button>
+        
+        <div className="w-px h-6 bg-white/20 mx-0.5"></div>
         
         <button 
           onClick={resetCamera}
-          className="p-2.5 rounded-md text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+          className="p-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
           title="Reset View & Unlock"
         >
-          <RotateCw size={20} />
+          <RotateCw size={19} />
         </button>
       </div>
 
