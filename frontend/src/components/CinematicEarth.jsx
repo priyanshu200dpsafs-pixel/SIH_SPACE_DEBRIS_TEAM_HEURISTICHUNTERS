@@ -8,7 +8,7 @@ import SatellitePanel from './panels/SatellitePanel';
 const GLOBE_RADIUS = 100;
 const MAX_SWARM_SATS = 30000;
 
-export default function CinematicEarth() {
+export default function CinematicEarth({ selectedConjunction }) {
   const globeEl = useRef();
   
   // Data Refs
@@ -126,6 +126,40 @@ export default function CinematicEarth() {
     swarmSatsRef.current = allSatsRef.current.filter(s => !s.isHighRisk);
     setThreatPointsData([...threatSatsRef.current]);
   }, [highRiskNames, dataReady]);
+
+  // Handle external selection from Threat Matrix or Threat Feed
+  useEffect(() => {
+    if (!selectedConjunction || allSatsRef.current.length === 0) return;
+
+    const id1 = selectedConjunction.norad_id_1?.toString();
+    const id2 = selectedConjunction.norad_id_2?.toString();
+    const name1 = selectedConjunction.object_1?.name;
+    const name2 = selectedConjunction.object_2?.name;
+
+    const targetSat = allSatsRef.current.find(s => 
+      (id1 && s.norad_id?.toString() === id1) ||
+      (id2 && s.norad_id?.toString() === id2) ||
+      (name1 && s.name?.toUpperCase() === name1?.toUpperCase()) ||
+      (name2 && s.name?.toUpperCase() === name2?.toUpperCase())
+    );
+
+    if (targetSat) {
+      const now = new Date();
+      const gmst = satellite.gstime(now);
+      try {
+        const pv = satellite.propagate(targetSat.satrec, now);
+        if (pv.position) {
+          const gd = satellite.eciToGeodetic(pv.position, gmst);
+          targetSat.lat = satellite.degreesLat(gd.latitude);
+          targetSat.lng = satellite.degreesLong(gd.longitude);
+          targetSat.alt = Math.max(0.02, gd.height / 6371.0);
+          targetSat.eci = pv.position;
+        }
+      } catch (e) {}
+
+      lockOnSatellite(targetSat);
+    }
+  }, [selectedConjunction?.id, dataReady]);
 
   // Search Logic
   useEffect(() => {
@@ -408,7 +442,7 @@ export default function CinematicEarth() {
     const baseDate = new Date();
     const fixedGmst = satellite.gstime(baseDate); // Freeze Earth's rotation for a closed loop
     const periodMins = Math.ceil((2 * Math.PI) / lockedSatellite.satrec.no);
-    const steps = 180; // High resolution
+    const steps = 360; // Ultra-high resolution 360-step orbit curve
     const stepSize = periodMins / steps;
     
     const positions = orbitLineMeshRef.current.geometry.attributes.position.array;
@@ -539,14 +573,14 @@ export default function CinematicEarth() {
       ambientLight = new THREE.AmbientLight(0x1a2a4a, 0.3);
       scene.add(ambientLight);
 
-      // Create Altitude Line for Locked Satellite
-      const altMat = new THREE.LineDashedMaterial({
-        color: 0x4ade80, // Bright green for altitude tracking
-        linewidth: 1,
-        dashSize: 2,
-        gapSize: 2,
+      // Create Altitude Line for Locked Satellite (High-Visibility Glowing Laser Stalk)
+      const altMat = new THREE.LineBasicMaterial({
+        color: 0x00ffff, // Vibrant glowing cyan
+        linewidth: 3,
         transparent: true,
-        opacity: 0.9
+        opacity: 1.0,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
       });
       const altGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
       const altLine = new THREE.Line(altGeo, altMat);
@@ -554,16 +588,18 @@ export default function CinematicEarth() {
       altLineMeshRef.current = altLine;
       scene.add(altLine);
 
-      // Create Orbit Line (Pure Cartesian)
+      // Create Orbit Line (Glowing Neon Cyan Orbit Loop)
       const orbitMat = new THREE.LineBasicMaterial({
-        color: 0x4ade80, // Bright green
-        linewidth: 1,
+        color: 0x22d3ee, // Bright Neon Cyan
+        linewidth: 3,
         transparent: true,
-        opacity: 0.9,
+        opacity: 1.0,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
       });
       const orbitGeo = new THREE.BufferGeometry();
-      // Preallocate space for 250 points max
-      orbitGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(250 * 3), 3));
+      // Preallocate space for 360 points
+      orbitGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(360 * 3), 3));
       orbitGeo.setDrawRange(0, 0);
       const orbitLine = new THREE.LineLoop(orbitGeo, orbitMat);
       orbitLine.visible = false;
@@ -770,23 +806,32 @@ export default function CinematicEarth() {
         htmlAltitude="alt"
         htmlTransitionDuration={0}
 
-        htmlElement={() => {
+        htmlElement={(d) => {
           const el = document.createElement('div');
           el.style.pointerEvents = 'none';
+          const altKm = d.alt ? (d.alt * 6371).toFixed(0) : 'LEO';
           el.innerHTML = `
-            <div style="transform: translate(-50%, -50%); position: relative; width: 70px; height: 70px;">
-              <svg width="70" height="70" viewBox="0 0 40 40" style="position: absolute; top: 0; left: 0; animation: reticleSpin 8s linear infinite; transform-origin: center;">
-                <circle cx="20" cy="20" r="17" fill="none" stroke="rgba(34,211,238,0.6)" stroke-width="0.8" stroke-dasharray="3 3"/>
-                <circle cx="20" cy="20" r="12" fill="none" stroke="rgba(34,211,238,0.3)" stroke-width="0.5"/>
+            <div style="transform: translate(-50%, -50%); position: relative; width: 100px; height: 100px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+              <!-- Target Name & Altitude Badge Above Satellite -->
+              <div style="position: absolute; bottom: 80px; background: rgba(7, 11, 20, 0.95); border: 1.5px solid #22d3ee; color: #22d3ee; font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: bold; padding: 3px 8px; border-radius: 6px; white-space: nowrap; box-shadow: 0 0 16px rgba(34, 211, 238, 0.6); text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center; gap: 4px;">
+                <span style="color: #ff0055;">⌖</span> ${d.name || 'LOCKED TARGET'} <span style="color: #94a3b8; font-size: 9px;">(${altKm} km)</span>
+              </div>
+              
+              <!-- Spinning Neon Outer Reticle -->
+              <svg width="84" height="84" viewBox="0 0 40 40" style="position: absolute; animation: reticleSpin 6s linear infinite; transform-origin: center; filter: drop-shadow(0 0 10px #22d3ee);">
+                <circle cx="20" cy="20" r="17" fill="none" stroke="#22d3ee" stroke-width="1.2" stroke-dasharray="4 3"/>
+                <circle cx="20" cy="20" r="11" fill="none" stroke="rgba(34,211,238,0.5)" stroke-width="0.8"/>
               </svg>
-              <svg width="70" height="70" viewBox="0 0 40 40" style="position: absolute; top: 0; left: 0;">
-                <line x1="20" y1="2" x2="20" y2="10" stroke="#22d3ee" stroke-width="1.5"/>
-                <line x1="20" y1="30" x2="20" y2="38" stroke="#22d3ee" stroke-width="1.5"/>
-                <line x1="2" y1="20" x2="10" y2="20" stroke="#22d3ee" stroke-width="1.5"/>
-                <line x1="30" y1="20" x2="38" y2="20" stroke="#22d3ee" stroke-width="1.5"/>
-                <circle cx="20" cy="20" r="2" fill="#ff0055">
-                  <animate attributeName="r" values="2;3;2" dur="1.5s" repeatCount="indefinite"/>
-                  <animate attributeName="opacity" values="1;0.5;1" dur="1.5s" repeatCount="indefinite"/>
+              
+              <!-- Fixed Target Crosshairs & Red Tracking Core -->
+              <svg width="84" height="84" viewBox="0 0 40 40" style="position: absolute;">
+                <line x1="20" y1="1" x2="20" y2="8" stroke="#22d3ee" stroke-width="2"/>
+                <line x1="20" y1="32" x2="20" y2="39" stroke="#22d3ee" stroke-width="2"/>
+                <line x1="1" y1="20" x2="8" y2="20" stroke="#22d3ee" stroke-width="2"/>
+                <line x1="32" y1="20" x2="39" y2="20" stroke="#22d3ee" stroke-width="2"/>
+                <circle cx="20" cy="20" r="3.5" fill="#ff0055">
+                  <animate attributeName="r" values="3;4.5;3" dur="1.2s" repeatCount="indefinite"/>
+                  <animate attributeName="opacity" values="1;0.6;1" dur="1.2s" repeatCount="indefinite"/>
                 </circle>
               </svg>
             </div>

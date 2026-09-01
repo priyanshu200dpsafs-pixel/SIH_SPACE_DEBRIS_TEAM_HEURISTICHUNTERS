@@ -33,7 +33,7 @@ export default function App() {
           <div className="flex-1 relative flex overflow-hidden">
             {/* Background / Center: 3D Visualization */}
             <div className="absolute inset-0 z-0">
-              <CinematicEarth />
+              <CinematicEarth selectedConjunction={selectedConjunction} />
               {/* Vignette overlay for cinematic depth */}
               <div className="vignette-overlay" />
               {/* Scan line effect */}
