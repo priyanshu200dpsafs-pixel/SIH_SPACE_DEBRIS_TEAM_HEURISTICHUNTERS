@@ -32,7 +32,7 @@ export default function ThreatFeed({ conjunctions, selectedPairId, onSelectPair 
           return (
             <div
               key={c.id}
-              onClick={() => onSelectPair(c.id)}
+              onClick={() => onSelectPair(c)}
               className={cn(
                 "p-4 rounded-xl border cursor-pointer transition-all duration-200 group relative overflow-hidden",
                 isSelected 

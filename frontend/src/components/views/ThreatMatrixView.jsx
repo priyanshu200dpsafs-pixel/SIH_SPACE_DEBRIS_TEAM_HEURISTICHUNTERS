@@ -111,7 +111,7 @@ export default function ThreatMatrixView({ conjunctions, onSelectPair }) {
                 return (
                   <tr
                     key={c.id || i}
-                    onClick={() => onSelectPair?.(c.id)}
+                    onClick={() => onSelectPair?.(c)}
                     className={`cursor-pointer transition-colors hover:bg-cyan-500/10 ${
                       isHighPc ? 'bg-red-950/20' : ''
                     }`}

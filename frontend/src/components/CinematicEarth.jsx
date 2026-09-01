@@ -129,19 +129,34 @@ export default function CinematicEarth({ selectedConjunction }) {
 
   // Handle external selection from Threat Matrix or Threat Feed
   useEffect(() => {
-    if (!selectedConjunction || allSatsRef.current.length === 0) return;
+    if (!selectedConjunction) return;
 
     const id1 = selectedConjunction.norad_id_1?.toString();
     const id2 = selectedConjunction.norad_id_2?.toString();
     const name1 = selectedConjunction.object_1?.name;
     const name2 = selectedConjunction.object_2?.name;
 
-    const targetSat = allSatsRef.current.find(s => 
+    // Search in allSatsRef.current
+    let targetSat = allSatsRef.current.find(s => 
       (id1 && s.norad_id?.toString() === id1) ||
       (id2 && s.norad_id?.toString() === id2) ||
       (name1 && s.name?.toUpperCase() === name1?.toUpperCase()) ||
       (name2 && s.name?.toUpperCase() === name2?.toUpperCase())
     );
+
+    // If not found in allSatsRef, construct it from conjunction TLE data if available
+    if (!targetSat && selectedConjunction.object_1?.tle_line1 && selectedConjunction.object_1?.tle_line2) {
+      try {
+        const satrec = satellite.twoline2satrec(selectedConjunction.object_1.tle_line1, selectedConjunction.object_1.tle_line2);
+        targetSat = {
+          name: name1 || `NORAD-${id1}`,
+          norad_id: id1 || 'UNKNOWN',
+          satrec,
+          lat: 0, lng: 0, alt: 0.1,
+          isHighRisk: true
+        };
+      } catch (e) {}
+    }
 
     if (targetSat) {
       const now = new Date();
@@ -152,14 +167,14 @@ export default function CinematicEarth({ selectedConjunction }) {
           const gd = satellite.eciToGeodetic(pv.position, gmst);
           targetSat.lat = satellite.degreesLat(gd.latitude);
           targetSat.lng = satellite.degreesLong(gd.longitude);
-          targetSat.alt = Math.max(0.02, gd.height / 6371.0);
+          targetSat.alt = Math.max(0.04, gd.height / 6371.0);
           targetSat.eci = pv.position;
         }
       } catch (e) {}
 
       lockOnSatellite(targetSat);
     }
-  }, [selectedConjunction?.id, dataReady]);
+  }, [selectedConjunction?.id, selectedConjunction?.norad_id_1, selectedConjunction?.norad_id_2, dataReady]);
 
   // Search Logic
   useEffect(() => {
@@ -175,6 +190,7 @@ export default function CinematicEarth({ selectedConjunction }) {
   }, [searchQuery]);
 
   const lockOnSatellite = (sat) => {
+    if (!sat) return;
     setLockedSatellite(sat);
     setIsPanelOpen(true);
     if (activePanelTab === 'filters') {
@@ -182,10 +198,15 @@ export default function CinematicEarth({ selectedConjunction }) {
     }
     setSearchQuery('');
     setIsDropdownOpen(false);
+    
+    // Instantly set the HTML reticle data on this satellite
+    setHtmlElementsData([sat]);
+
     if (globeEl.current) {
       globeEl.current.controls().autoRotate = false;
-      const cameraAlt = Math.max(sat.alt + 1.5, 2.5);
-      globeEl.current.pointOfView({ lat: sat.lat, lng: sat.lng, altitude: cameraAlt }, 1200);
+      // Close-up cinematic zoom on the satellite
+      const cameraAlt = Math.max(sat.alt + 0.8, 1.6);
+      globeEl.current.pointOfView({ lat: sat.lat, lng: sat.lng, altitude: cameraAlt }, 1400);
     }
   };
 
@@ -382,7 +403,7 @@ export default function CinematicEarth({ selectedConjunction }) {
         setRingsData(rings);
 
         if (lockedSatUpdated) {
-          // Update Custom Altitude Line for Locked Satellite
+          // Update Custom Altitude Stalk (Solid 3D Laser Cylinder)
           if (altLineMeshRef.current) {
             const phi = (90 - lockedSatUpdated.lat) * (Math.PI / 180);
             const theta = (90 - lockedSatUpdated.lng) * (Math.PI / 180);
@@ -398,12 +419,21 @@ export default function CinematicEarth({ selectedConjunction }) {
             const y2 = r_sat * Math.cos(phi);
             const z2 = r_sat * Math.sin(phi) * Math.sin(theta);
             
-            altLineMeshRef.current.geometry.setFromPoints([
-              new THREE.Vector3(x1, y1, z1),
-              new THREE.Vector3(x2, y2, z2)
-            ]);
-            altLineMeshRef.current.computeLineDistances();
-            altLineMeshRef.current.visible = true;
+            const vGround = new THREE.Vector3(x1, y1, z1);
+            const vSat = new THREE.Vector3(x2, y2, z2);
+            const stalkLength = vGround.distanceTo(vSat);
+            
+            if (stalkLength > 0.1) {
+              altLineMeshRef.current.geometry.dispose();
+              altLineMeshRef.current.geometry = new THREE.CylinderGeometry(0.35, 0.35, stalkLength, 8);
+              
+              const midpoint = new THREE.Vector3().addVectors(vGround, vSat).multiplyScalar(0.5);
+              altLineMeshRef.current.position.copy(midpoint);
+              
+              const dir = new THREE.Vector3().subVectors(vSat, vGround).normalize();
+              altLineMeshRef.current.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+              altLineMeshRef.current.visible = true;
+            }
           }
 
           const distances = threatSatsRef.current
@@ -430,7 +460,7 @@ export default function CinematicEarth({ selectedConjunction }) {
     return () => clearInterval(interval);
   }, [highRiskNames, lockedSatellite?.norad_id, dataReady, showSwarm, filters]);
 
-  // 4. Custom Orbit Trace via Three.js (Bypasses all react-globe.gl map-wrapping bugs)
+  // 4. Custom Orbit Trace via 3D Solid Tube Mesh
   useEffect(() => {
     if (!orbitLineMeshRef.current) return;
     
@@ -441,40 +471,44 @@ export default function CinematicEarth({ selectedConjunction }) {
     
     const baseDate = new Date();
     const fixedGmst = satellite.gstime(baseDate); // Freeze Earth's rotation for a closed loop
-    const periodMins = Math.ceil((2 * Math.PI) / lockedSatellite.satrec.no);
-    const steps = 360; // Ultra-high resolution 360-step orbit curve
+    const periodMins = Math.ceil((2 * Math.PI) / (lockedSatellite.satrec?.no || 0.06));
+    const steps = 180; // High resolution
     const stepSize = periodMins / steps;
     
-    const positions = orbitLineMeshRef.current.geometry.attributes.position.array;
-    let idx = 0;
-
-    for (let i = 0; i <= steps; i++) {
+    const points = [];
+    for (let i = 0; i < steps; i++) {
       const d = new Date(baseDate.getTime() + i * stepSize * 60000);
       try {
         const pv = satellite.propagate(lockedSatellite.satrec, d);
         if (pv.position) {
-          // Use fixedGmst so the orbit forms a perfect closed hoop in ECEF space
           const gd = satellite.eciToGeodetic(pv.position, fixedGmst);
           const lat = satellite.degreesLat(gd.latitude);
           const lng = satellite.degreesLong(gd.longitude);
           const alt = gd.height / 6371.0;
           
-          // Pure Cartesian conversion (matches react-globe.gl spherical coordinate space)
           const phi = (90 - lat) * (Math.PI / 180);
           const theta = (90 - lng) * (Math.PI / 180);
           const r = GLOBE_RADIUS * (1 + alt);
           
-          positions[idx++] = r * Math.sin(phi) * Math.cos(theta); // x
-          positions[idx++] = r * Math.cos(phi);                   // y
-          positions[idx++] = r * Math.sin(phi) * Math.sin(theta); // z
+          points.push(new THREE.Vector3(
+            r * Math.sin(phi) * Math.cos(theta),
+            r * Math.cos(phi),
+            r * Math.sin(phi) * Math.sin(theta)
+          ));
         }
       } catch (e) {}
     }
     
-    orbitLineMeshRef.current.geometry.setDrawRange(0, idx / 3);
-    orbitLineMeshRef.current.geometry.attributes.position.needsUpdate = true;
-    orbitLineMeshRef.current.geometry.computeBoundingSphere();
-    orbitLineMeshRef.current.visible = true;
+    if (points.length > 10) {
+      try {
+        const curve = new THREE.CatmullRomCurve3(points, true);
+        orbitLineMeshRef.current.geometry.dispose();
+        orbitLineMeshRef.current.geometry = new THREE.TubeGeometry(curve, 180, 0.35, 8, true);
+        orbitLineMeshRef.current.visible = true;
+      } catch (e) {
+        console.warn("Orbit tube generation fallback", e);
+      }
+    }
 
   }, [lockedSatellite?.norad_id]);
 
@@ -573,38 +607,29 @@ export default function CinematicEarth({ selectedConjunction }) {
       ambientLight = new THREE.AmbientLight(0x1a2a4a, 0.3);
       scene.add(ambientLight);
 
-      // Create Altitude Line for Locked Satellite (High-Visibility Glowing Laser Stalk)
-      const altMat = new THREE.LineBasicMaterial({
+      // Create Altitude Stalk for Locked Satellite (Solid 3D Glowing Laser Cylinder)
+      const altMat = new THREE.MeshBasicMaterial({
         color: 0x00ffff, // Vibrant glowing cyan
-        linewidth: 3,
         transparent: true,
-        opacity: 1.0,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false
+        opacity: 0.95
       });
-      const altGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
-      const altLine = new THREE.Line(altGeo, altMat);
-      altLine.visible = false;
-      altLineMeshRef.current = altLine;
-      scene.add(altLine);
+      const altGeo = new THREE.CylinderGeometry(0.35, 0.35, 1, 8);
+      const altMesh = new THREE.Mesh(altGeo, altMat);
+      altMesh.visible = false;
+      altLineMeshRef.current = altMesh;
+      scene.add(altMesh);
 
-      // Create Orbit Line (Glowing Neon Cyan Orbit Loop)
-      const orbitMat = new THREE.LineBasicMaterial({
+      // Create Orbit Trajectory (Solid 3D Glowing Neon Cyan Tube)
+      const orbitMat = new THREE.MeshBasicMaterial({
         color: 0x22d3ee, // Bright Neon Cyan
-        linewidth: 3,
         transparent: true,
-        opacity: 1.0,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false
+        opacity: 0.95,
+        side: THREE.DoubleSide
       });
-      const orbitGeo = new THREE.BufferGeometry();
-      // Preallocate space for 360 points
-      orbitGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(360 * 3), 3));
-      orbitGeo.setDrawRange(0, 0);
-      const orbitLine = new THREE.LineLoop(orbitGeo, orbitMat);
-      orbitLine.visible = false;
-      orbitLineMeshRef.current = orbitLine;
-      scene.add(orbitLine);
+      const orbitMesh = new THREE.Mesh(new THREE.BufferGeometry(), orbitMat);
+      orbitMesh.visible = false;
+      orbitLineMeshRef.current = orbitMesh;
+      scene.add(orbitMesh);
 
       const geometry = new THREE.BufferGeometry();
       const positions = new Float32Array(MAX_SWARM_SATS * 3);
