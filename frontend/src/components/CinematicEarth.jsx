@@ -656,27 +656,27 @@ export default function CinematicEarth() {
         style={{ opacity: hoveredSat ? 1 : 0 }}
       >
         {hoveredSat && (
-          <div className="glass-panel-bright p-3 min-w-[220px]">
-            <div className="flex items-center space-x-2 mb-2 pb-2 border-b border-white/[0.1]">
-              <div className={`w-1.5 h-1.5 rounded-full ${hoveredSat.isHighRisk ? 'bg-red-500 animate-pulse' : 'bg-cyan-400'}`}></div>
-              <div className="text-white font-bold text-[11px] uppercase tracking-wider truncate">{hoveredSat.name}</div>
+          <div className="glass-panel-bright p-4 min-w-[280px] rounded-xl shadow-2xl border border-cyan-400/40 bg-slate-950/90 backdrop-blur-2xl">
+            <div className="flex items-center space-x-2.5 mb-2.5 pb-2.5 border-b border-white/15">
+              <div className={`w-2.5 h-2.5 rounded-full ${hoveredSat.isHighRisk ? 'bg-red-500 animate-pulse shadow-[0_0_8px_#ff0055]' : 'bg-cyan-400 shadow-[0_0_8px_#22d3ee]'}`}></div>
+              <div className="text-white font-bold text-sm tracking-wide truncate max-w-[220px]">{hoveredSat.name}</div>
             </div>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[10px] font-mono">
-              <div className="text-slate-500">NORAD</div>
-              <div className="text-cyan-300 text-right">{hoveredSat.norad_id}</div>
+            <div className="grid grid-cols-2 gap-x-5 gap-y-2 text-xs font-mono">
+              <div className="text-slate-400 font-semibold uppercase text-[11px]">NORAD ID</div>
+              <div className="text-cyan-300 font-bold text-right text-xs">{hoveredSat.norad_id}</div>
               
-              <div className="text-slate-500">ALTITUDE</div>
-              <div className="text-slate-300 text-right">{(hoveredSat.alt * 6371).toFixed(1)} km</div>
+              <div className="text-slate-400 font-semibold uppercase text-[11px]">ALTITUDE</div>
+              <div className="text-slate-100 font-bold text-right text-xs">{(hoveredSat.alt * 6371).toFixed(1)} km</div>
               
-              <div className="text-slate-500">LATITUDE</div>
-              <div className="text-slate-300 text-right">{hoveredSat.lat?.toFixed(2)}°</div>
+              <div className="text-slate-400 font-semibold uppercase text-[11px]">LATITUDE</div>
+              <div className="text-slate-100 font-bold text-right text-xs">{hoveredSat.lat?.toFixed(2)}°</div>
               
-              <div className="text-slate-500">LONGITUDE</div>
-              <div className="text-slate-300 text-right">{hoveredSat.lng?.toFixed(2)}°</div>
+              <div className="text-slate-400 font-semibold uppercase text-[11px]">LONGITUDE</div>
+              <div className="text-slate-100 font-bold text-right text-xs">{hoveredSat.lng?.toFixed(2)}°</div>
             </div>
             {hoveredSat.isHighRisk && (
-              <div className="mt-2.5 text-[9px] text-red-400 border border-red-500/30 bg-red-500/10 text-center py-0.5 uppercase tracking-widest font-bold">
-                ACTIVE THREAT
+              <div className="mt-3 text-xs text-red-300 border border-red-500/50 bg-red-500/20 text-center py-1 rounded-md uppercase tracking-widest font-bold">
+                ⚠️ ACTIVE THREAT PAIR
               </div>
             )}
           </div>
@@ -684,40 +684,40 @@ export default function CinematicEarth() {
       </div>
 
       {/* Toolbar Layer */}
-      <div className="absolute top-6 left-1/2 -translate-x-1/2 z-40 flex items-center bg-[#1a1b26]/90 border border-slate-700/50 rounded-md shadow-2xl backdrop-blur-md px-1 py-1">
+      <div className="absolute top-6 left-1/2 -translate-x-1/2 z-40 flex items-center bg-[#0d121f]/95 border border-cyan-500/30 rounded-lg shadow-2xl backdrop-blur-xl px-2 py-1.5 gap-1">
         <button 
           onClick={toggleSwarm}
-          className={`p-2 rounded-md transition-colors ${showSwarm ? 'text-white bg-slate-700/50' : 'text-slate-400 hover:text-white hover:bg-slate-700/30'}`}
+          className={`p-2.5 rounded-md transition-colors ${showSwarm ? 'text-cyan-300 bg-cyan-950/60 border border-cyan-500/40 shadow-[0_0_10px_rgba(34,211,238,0.2)]' : 'text-slate-400 hover:text-white hover:bg-white/10'}`}
           title="Toggle Satellite Swarm"
         >
-          <Satellite size={18} />
+          <Satellite size={20} />
         </button>
         <button 
           onClick={toggleTheme}
-          className={`p-2 rounded-md transition-colors mx-1 ${earthTheme === 'night' ? 'text-white bg-slate-700/50' : 'text-slate-400 hover:text-white hover:bg-slate-700/30'}`}
+          className={`p-2.5 rounded-md transition-colors ${earthTheme === 'night' ? 'text-cyan-300 bg-cyan-950/60 border border-cyan-500/40 shadow-[0_0_10px_rgba(34,211,238,0.2)]' : 'text-slate-400 hover:text-white hover:bg-white/10'}`}
           title="Toggle Earth View (Day/Night)"
         >
-          <GlobeIcon size={18} />
+          <GlobeIcon size={20} />
         </button>
         <button 
           onClick={() => {
             setActivePanelTab('filters');
             setIsPanelOpen(prev => !prev || activePanelTab !== 'filters');
           }}
-          className={`p-2 rounded-md transition-colors mx-1 ${isPanelOpen && activePanelTab === 'filters' ? 'text-white bg-slate-700/50' : 'text-slate-400 hover:text-white hover:bg-slate-700/30'}`}
+          className={`p-2.5 rounded-md transition-colors ${isPanelOpen && activePanelTab === 'filters' ? 'text-cyan-300 bg-cyan-950/60 border border-cyan-500/40 shadow-[0_0_10px_rgba(34,211,238,0.2)]' : 'text-slate-400 hover:text-white hover:bg-white/10'}`}
           title="Toggle Global Filters"
         >
-          <SlidersHorizontal size={18} />
+          <SlidersHorizontal size={20} />
         </button>
         
-        <div className="w-px h-6 bg-slate-700/50 mx-1"></div>
+        <div className="w-px h-6 bg-white/20 mx-1"></div>
         
         <button 
           onClick={resetCamera}
-          className="p-2 rounded-md text-slate-400 hover:text-white hover:bg-slate-700/30 transition-colors"
+          className="p-2.5 rounded-md text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
           title="Reset View & Unlock"
         >
-          <RotateCw size={18} />
+          <RotateCw size={20} />
         </button>
       </div>
 
@@ -796,7 +796,7 @@ export default function CinematicEarth() {
       />
 
       {/* SEARCH BAR */}
-      <div className="absolute top-6 left-6 z-[100] w-80">
+      <div className="absolute top-6 left-6 z-[100] w-96">
         <div className="relative">
           <input 
             type="text" 
@@ -807,28 +807,28 @@ export default function CinematicEarth() {
               setIsDropdownOpen(true);
             }}
             onFocus={() => setIsDropdownOpen(true)}
-            className="w-full glass-panel text-cyan-300 font-mono text-xs px-4 py-2.5 rounded-md focus:outline-none focus:border-cyan-400/60 transition-all duration-300 placeholder:text-slate-600"
-            style={{ borderColor: searchQuery ? 'rgba(34,211,238,0.5)' : undefined }}
+            className="w-full glass-panel-bright text-cyan-200 font-mono text-sm px-4.5 py-3 rounded-lg focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-all duration-300 placeholder:text-slate-500 bg-slate-950/80"
+            style={{ borderColor: searchQuery ? 'rgba(34,211,238,0.7)' : undefined }}
           />
-          <div className="absolute right-3 top-2.5 pointer-events-none text-cyan-500/50">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <div className="absolute right-3.5 top-3.5 pointer-events-none text-cyan-400">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           </div>
         </div>
 
         {isDropdownOpen && searchResults.length > 0 && (
-          <div className="mt-1.5 glass-panel-bright overflow-hidden animate-slideDown">
+          <div className="mt-2 glass-panel-bright overflow-hidden rounded-lg shadow-2xl border border-cyan-500/30 bg-slate-950/95">
             {searchResults.map((sat, i) => (
               <div 
                 key={sat.norad_id}
                 onClick={() => lockOnSatellite(sat)}
-                className="px-4 py-2.5 font-mono text-xs cursor-pointer hover:bg-cyan-500/10 border-b border-white/[0.03] transition-all duration-200 flex justify-between items-center"
+                className="px-4.5 py-3 font-mono text-sm cursor-pointer hover:bg-cyan-500/20 border-b border-white/[0.06] transition-all duration-200 flex justify-between items-center"
                 style={{ animation: `staggerFadeIn 0.3s ease-out ${i * 0.05}s backwards` }}
               >
-                <div className="flex items-center space-x-2">
-                  {sat.isHighRisk && <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />}
-                  <span className="text-white font-medium">{sat.name}</span>
+                <div className="flex items-center space-x-2.5">
+                  {sat.isHighRisk && <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />}
+                  <span className="text-white font-semibold">{sat.name}</span>
                 </div>
-                <span className="text-slate-600 text-[10px] tabular-nums">ID: {sat.norad_id}</span>
+                <span className="text-slate-400 text-xs tabular-nums font-bold">NORAD: {sat.norad_id}</span>
               </div>
             ))}
           </div>

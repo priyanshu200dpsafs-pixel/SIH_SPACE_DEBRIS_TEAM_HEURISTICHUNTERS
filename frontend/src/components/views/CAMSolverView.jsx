@@ -39,91 +39,91 @@ export default function CAMSolverView({ conjunction, conjunctions }) {
   return (
     <div className="flex-1 flex overflow-hidden bg-[var(--color-void)]">
       {/* Left: Conjunction Selector */}
-      <div className="w-72 border-r border-white/5 bg-black/40 overflow-y-auto">
-        <div className="p-4 border-b border-white/10">
-          <h3 className="text-[10px] uppercase tracking-widest text-white/50 font-semibold">SELECT EVENT</h3>
+      <div className="w-80 2xl:w-96 border-r border-white/10 bg-black/60 overflow-y-auto">
+        <div className="p-4.5 border-b border-white/10 bg-black/40">
+          <h3 className="text-xs uppercase tracking-widest text-slate-300 font-bold">SELECT CONJUNCTION EVENT</h3>
         </div>
         {conjunctions?.map(c => (
           <button
             key={c.id}
             onClick={() => { setSelectedId(c.id); setResult(null); }}
-            className={`w-full text-left px-4 py-3 border-b border-white/[0.03] transition-colors text-xs font-mono ${
+            className={`w-full text-left px-5 py-4 border-b border-white/[0.05] transition-colors text-sm font-mono cursor-pointer ${
               selectedId === c.id
-                ? 'bg-cyan-500/10 text-cyan-300 border-l-2 border-l-cyan-400'
-                : 'text-white/60 hover:bg-white/[0.03] border-l-2 border-l-transparent'
+                ? 'bg-purple-500/20 text-purple-200 border-l-3 border-l-purple-400'
+                : 'text-slate-300 hover:bg-white/[0.05] hover:text-white border-l-3 border-l-transparent'
             }`}
           >
-            <div className="font-semibold text-[11px]">
+            <div className="font-bold text-sm tracking-wide">
               {c.object_1?.name || c.norad_id_1} × {c.object_2?.name || c.norad_id_2}
             </div>
-            <div className="text-[9px] text-white/40 mt-0.5">
-              Pc: {c.pc?.toExponential(2)} · Miss: {(c.min_dist_km * 1000).toFixed(0)}m
+            <div className="text-xs text-slate-400 mt-1 font-semibold">
+              Pc: <span className="text-amber-400">{c.pc?.toExponential(2)}</span> · Miss: <span className="text-white">{(c.min_dist_km * 1000).toFixed(0)}m</span>
             </div>
           </button>
         ))}
       </div>
 
       {/* Center: CAM Solver */}
-      <div className="flex-1 flex flex-col items-center justify-center p-8">
+      <div className="flex-1 flex flex-col items-center justify-center p-8 overflow-y-auto">
         {!activeConj ? (
-          <div className="text-center text-white/30 font-mono uppercase tracking-widest text-xs space-y-3">
-            <Wrench size={48} className="mx-auto mb-4 opacity-30" />
-            <div>Select a conjunction to compute CAM</div>
+          <div className="text-center text-slate-400 font-mono uppercase tracking-widest text-sm space-y-3">
+            <Wrench size={52} className="mx-auto mb-4 opacity-40 text-purple-400" />
+            <div>Select a conjunction from the list to compute CAM</div>
           </div>
         ) : (
           <div className="w-full max-w-2xl space-y-6">
-            <h2 className="text-lg font-bold tracking-widest uppercase text-white flex items-center gap-2">
-              <Wrench className="text-purple-400" size={20} />
+            <h2 className="text-xl font-bold tracking-widest uppercase text-white flex items-center gap-3">
+              <Wrench className="text-purple-400" size={24} />
               COLLISION AVOIDANCE MANEUVER SOLVER
             </h2>
 
             {/* Event Summary */}
-            <div className="bg-black/40 border border-white/10 rounded-lg p-4">
-              <div className="text-[10px] uppercase tracking-widest text-white/40 mb-3 font-semibold">Active Event</div>
+            <div className="bg-black/60 border border-white/10 rounded-xl p-5 shadow-xl">
+              <div className="text-xs uppercase tracking-widest text-slate-400 mb-3 font-bold">Active Encounter Summary</div>
               <div className="grid grid-cols-4 gap-4 text-xs font-mono">
                 <div>
-                  <div className="text-[9px] text-white/40 uppercase">Pair</div>
-                  <div className="text-white/90 font-bold">{activeConj.object_1?.name || activeConj.norad_id_1}</div>
-                  <div className="text-white/50">× {activeConj.object_2?.name || activeConj.norad_id_2}</div>
+                  <div className="text-[11px] text-slate-400 uppercase font-semibold mb-0.5">Encounter Pair</div>
+                  <div className="text-white font-bold text-sm truncate">{activeConj.object_1?.name || activeConj.norad_id_1}</div>
+                  <div className="text-slate-400 text-xs truncate">× {activeConj.object_2?.name || activeConj.norad_id_2}</div>
                 </div>
                 <div>
-                  <div className="text-[9px] text-white/40 uppercase">Current Miss</div>
-                  <div className="text-red-400 font-bold">{(activeConj.min_dist_km * 1000).toFixed(1)} m</div>
+                  <div className="text-[11px] text-slate-400 uppercase font-semibold mb-0.5">Current Miss</div>
+                  <div className="text-red-400 font-bold text-sm">{(activeConj.min_dist_km * 1000).toFixed(1)} m</div>
                 </div>
                 <div>
-                  <div className="text-[9px] text-white/40 uppercase">Pc</div>
-                  <div className="text-orange-400 font-bold">{activeConj.pc?.toExponential(3)}</div>
+                  <div className="text-[11px] text-slate-400 uppercase font-semibold mb-0.5">Collision Prob (Pc)</div>
+                  <div className="text-amber-400 font-bold text-sm">{activeConj.pc?.toExponential(3)}</div>
                 </div>
                 <div>
-                  <div className="text-[9px] text-white/40 uppercase">TCA</div>
-                  <div className="text-white/70">{new Date(activeConj.tca).toISOString().replace('T', ' ').substring(0, 19)}</div>
+                  <div className="text-[11px] text-slate-400 uppercase font-semibold mb-0.5">Predicted TCA</div>
+                  <div className="text-slate-200 text-xs font-semibold">{new Date(activeConj.tca).toISOString().replace('T', ' ').substring(0, 19)}</div>
                 </div>
               </div>
             </div>
 
             {/* Solver Inputs */}
-            <div className="bg-black/40 border border-white/10 rounded-lg p-4 space-y-4">
-              <div className="text-[10px] uppercase tracking-widest text-white/40 font-semibold">Maneuver Parameters</div>
+            <div className="bg-black/60 border border-white/10 rounded-xl p-5 space-y-5 shadow-xl">
+              <div className="text-xs uppercase tracking-widest text-slate-300 font-bold">Maneuver Parameters</div>
               
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-5">
                 <div>
-                  <label className="block text-[10px] uppercase tracking-wider text-white/50 mb-1.5 font-semibold">Hours Before TCA</label>
+                  <label className="block text-xs uppercase tracking-wider text-slate-300 mb-2 font-bold">Hours Before TCA (Burn Lead Time)</label>
                   <input
                     type="number"
                     value={hoursToTca}
                     onChange={e => setHoursToTca(Number(e.target.value))}
                     min={1} max={72} step={1}
-                    className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-sm text-white font-mono focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
+                    className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-base text-white font-mono focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent font-bold"
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] uppercase tracking-wider text-white/50 mb-1.5 font-semibold">Target Miss Distance (m)</label>
+                  <label className="block text-xs uppercase tracking-wider text-slate-300 mb-2 font-bold">Target Miss Distance (Meters)</label>
                   <input
                     type="number"
                     value={targetMiss}
                     onChange={e => setTargetMiss(Number(e.target.value))}
                     min={100} max={50000} step={100}
-                    className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-sm text-white font-mono focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent"
+                    className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-base text-white font-mono focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent font-bold"
                   />
                 </div>
               </div>
@@ -131,12 +131,12 @@ export default function CAMSolverView({ conjunction, conjunctions }) {
               <button
                 onClick={runSolver}
                 disabled={loading}
-                className="w-full py-3 bg-purple-600 hover:bg-purple-500 disabled:bg-purple-800 disabled:opacity-50 rounded-lg text-sm font-bold uppercase tracking-widest transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full py-3.5 bg-purple-600 hover:bg-purple-500 disabled:bg-purple-900 disabled:opacity-50 rounded-lg text-sm font-bold uppercase tracking-widest transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-purple-900/40 text-white"
               >
                 {loading ? (
-                  <><Loader2 size={16} className="animate-spin" /> Computing Optimal ΔV...</>
+                  <><Loader2 size={18} className="animate-spin" /> Computing Optimal ΔV Vector...</>
                 ) : (
-                  <><Rocket size={16} /> Compute CAM Solution</>
+                  <><Rocket size={18} /> Compute Optimal Avoidance Burn</>
                 )}
               </button>
             </div>

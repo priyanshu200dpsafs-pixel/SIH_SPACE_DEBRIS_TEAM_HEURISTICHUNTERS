@@ -41,25 +41,25 @@ export default function BPlaneView({ conjunction, conjunctions }) {
   return (
     <div className="flex-1 flex overflow-hidden bg-[var(--color-void)]">
       {/* Left: Conjunction Selector */}
-      <div className="w-72 border-r border-white/5 bg-black/40 overflow-y-auto">
-        <div className="p-4 border-b border-white/10">
-          <h3 className="text-[10px] uppercase tracking-widest text-white/50 font-semibold">SELECT EVENT</h3>
+      <div className="w-80 2xl:w-96 border-r border-white/10 bg-black/60 overflow-y-auto">
+        <div className="p-4.5 border-b border-white/10 bg-black/40">
+          <h3 className="text-xs uppercase tracking-widest text-slate-300 font-bold">SELECT CONJUNCTION EVENT</h3>
         </div>
         {conjunctions?.map(c => (
           <button
             key={c.id}
             onClick={() => setSelectedId(c.id)}
-            className={`w-full text-left px-4 py-3 border-b border-white/[0.03] transition-colors text-xs font-mono ${
+            className={`w-full text-left px-5 py-4 border-b border-white/[0.05] transition-colors text-sm font-mono cursor-pointer ${
               selectedId === c.id
-                ? 'bg-cyan-500/10 text-cyan-300 border-l-2 border-l-cyan-400'
-                : 'text-white/60 hover:bg-white/[0.03] border-l-2 border-l-transparent'
+                ? 'bg-cyan-500/20 text-cyan-200 border-l-3 border-l-cyan-400'
+                : 'text-slate-300 hover:bg-white/[0.05] hover:text-white border-l-3 border-l-transparent'
             }`}
           >
-            <div className="font-semibold text-[11px]">
+            <div className="font-bold text-sm tracking-wide">
               {c.object_1?.name || c.norad_id_1} × {c.object_2?.name || c.norad_id_2}
             </div>
-            <div className="text-[9px] text-white/40 mt-0.5">
-              Pc: {c.pc?.toExponential(2)} · Miss: {(c.min_dist_km * 1000).toFixed(0)}m
+            <div className="text-xs text-slate-400 mt-1 font-semibold">
+              Pc: <span className="text-amber-400">{c.pc?.toExponential(2)}</span> · Miss: <span className="text-white">{(c.min_dist_km * 1000).toFixed(0)}m</span>
             </div>
           </button>
         ))}

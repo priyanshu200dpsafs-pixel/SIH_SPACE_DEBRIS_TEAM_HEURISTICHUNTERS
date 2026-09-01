@@ -88,22 +88,22 @@ export default function TopNav({ onOpenTrustView, activeTab = '3d-radar', onTabC
   };
 
   return (
-    <div className="w-full bg-[#060a14]/95 backdrop-blur-xl z-50 relative border-b border-white/5">
-      {/* Single compact row */}
-      <div className="flex items-center justify-between px-4 h-11">
+    <div className="w-full bg-[#060a14]/95 backdrop-blur-xl z-50 relative border-b border-white/10 shadow-lg shadow-black/50">
+      {/* Primary Navigation Row */}
+      <div className="flex items-center justify-between px-5 h-13">
         {/* Logo */}
         <div className="flex items-center space-x-3 shrink-0">
           <div className="relative">
-            <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.8)]"></div>
-            <div className="absolute inset-0 w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping opacity-30"></div>
+            <div className="w-3 h-3 rounded-full bg-cyan-400 shadow-[0_0_12px_rgba(34,211,238,0.9)]"></div>
+            <div className="absolute inset-0 w-3 h-3 rounded-full bg-cyan-400 animate-ping opacity-40"></div>
           </div>
-          <h1 className="text-white font-semibold tracking-wider uppercase text-sm">
-            ORBITAL <span className="text-cyan-400 font-light">//</span> <span className="text-slate-400 font-light">DEFENSE OPS</span>
+          <h1 className="text-white font-bold tracking-wider uppercase text-base">
+            ORBITAL <span className="text-cyan-400 font-light">//</span> <span className="text-slate-300 font-light">DEFENSE OPS</span>
           </h1>
         </div>
 
         {/* Navigation Tabs */}
-        <div className="flex items-center space-x-1 mx-4">
+        <div className="flex items-center space-x-1.5 mx-4">
           {NAV_TABS.map(tab => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -111,75 +111,77 @@ export default function TopNav({ onOpenTrustView, activeTab = '3d-radar', onTabC
               <button
                 key={tab.id}
                 onClick={() => onTabChange?.(tab.id)}
-                className={`flex items-center space-x-1.5 px-3 py-1 rounded text-[10px] font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer ${
+                className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer ${
                   isActive
-                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-[0_0_8px_rgba(34,211,238,0.15)]'
-                    : 'text-slate-500 hover:text-slate-300 hover:bg-white/5 border border-transparent'
+                    ? 'bg-cyan-500/25 text-cyan-300 border border-cyan-400/60 shadow-[0_0_12px_rgba(34,211,238,0.25)]'
+                    : 'text-slate-400 hover:text-white hover:bg-white/10 border border-transparent'
                 }`}
               >
-                <Icon size={12} className={isActive ? 'text-cyan-400' : ''} />
-                <span className="hidden xl:inline">{tab.label}</span>
+                <Icon size={15} className={isActive ? 'text-cyan-300' : 'text-slate-400'} />
+                <span className="hidden lg:inline">{tab.label}</span>
               </button>
             );
           })}
         </div>
 
         {/* Right side: Clock + Sync + Status */}
-        <div className="flex items-center space-x-3 shrink-0">
+        <div className="flex items-center space-x-3.5 shrink-0">
           {/* LAST DATA SYNC */}
-          <div className="hidden md:flex items-center space-x-2 bg-white/[0.03] border border-white/10 px-2.5 py-0.5 rounded text-xs" title={`Full sync timestamp: ${healthData?.last_pipeline_run || 'N/A'}`}>
-            <Clock size={11} className="text-slate-400" />
-            <span className="text-slate-400 font-mono text-[10px] uppercase tracking-wider">LAST SYNC</span>
-            <span className="text-amber-300 font-mono text-[11px] font-bold">
+          <div className="hidden md:flex items-center space-x-2 bg-white/[0.05] border border-white/15 px-3 py-1 rounded-md text-xs" title={`Full sync timestamp: ${healthData?.last_pipeline_run || 'N/A'}`}>
+            <Clock size={13} className="text-slate-400" />
+            <span className="text-slate-400 font-mono text-xs uppercase tracking-wider font-semibold">LAST SYNC</span>
+            <span className="text-amber-300 font-mono text-xs font-bold">
               {formatLastSync(healthData?.last_pipeline_run)}
             </span>
           </div>
 
           {/* NEXT REFRESH CYCLE COUNTDOWN */}
-          <div className="hidden lg:flex items-center space-x-2 bg-cyan-950/30 border border-cyan-500/20 px-2.5 py-0.5 rounded text-xs" title="Automated CelesTrak ephemeris & space weather screening cycle">
-            <RefreshCw size={11} className="text-cyan-400 animate-[spin_8s_linear_infinite]" />
-            <span className="text-cyan-400/80 font-mono text-[10px] uppercase tracking-wider">NEXT CYCLE</span>
-            <span className="text-cyan-300 font-mono text-[11px] font-bold tracking-tight">
+          <div className="hidden lg:flex items-center space-x-2 bg-cyan-950/40 border border-cyan-500/30 px-3 py-1 rounded-md text-xs" title="Automated CelesTrak ephemeris & space weather screening cycle">
+            <RefreshCw size={13} className="text-cyan-400 animate-[spin_8s_linear_infinite]" />
+            <span className="text-cyan-400/90 font-mono text-xs uppercase tracking-wider font-semibold">NEXT CYCLE</span>
+            <span className="text-cyan-300 font-mono text-xs font-bold tracking-tight">
               {countdownStr || 'CALCULATING...'}
             </span>
           </div>
 
-          <div className="text-amber-400/90 font-mono text-[11px] tracking-wider tabular-nums hidden sm:block">
+          <div className="text-amber-300 font-mono text-xs tracking-wider tabular-nums font-bold hidden sm:block bg-black/40 px-2.5 py-1 rounded border border-white/10">
             {time}
           </div>
+
           <button 
             onClick={onOpenTrustView}
-            className="flex items-center space-x-1.5 px-2 py-0.5 rounded-sm border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors text-emerald-400 group cursor-pointer"
+            className="flex items-center space-x-1.5 px-3 py-1 rounded border border-emerald-500/40 bg-emerald-500/15 hover:bg-emerald-500/30 transition-colors text-emerald-300 group cursor-pointer text-xs font-bold uppercase tracking-wider"
           >
-            <ShieldCheck size={12} className="group-hover:scale-110 transition-transform" />
-            <span className="text-[10px] uppercase tracking-wider font-semibold">SYSTEM TRUST</span>
+            <ShieldCheck size={14} className="group-hover:scale-110 transition-transform text-emerald-400" />
+            <span>SYSTEM TRUST</span>
           </button>
-          <div className="flex items-center space-x-1.5 border border-emerald-500/30 bg-emerald-500/5 px-2 py-0.5 rounded-sm">
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></div>
-            <span className="text-emerald-400 text-[10px] uppercase tracking-wider font-semibold">LIVE</span>
+
+          <div className="flex items-center space-x-1.5 border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1 rounded text-xs font-bold uppercase tracking-wider text-emerald-300">
+            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
+            <span>LIVE</span>
           </div>
         </div>
       </div>
 
       {/* Telemetry Stats Bar */}
-      <div className="flex items-center px-4 h-7 bg-black/40 border-t border-white/[0.03] space-x-5">
-        <div className="flex items-center space-x-2">
-          <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_rgba(34,211,238,0.8)]"></div>
-          <span className="text-slate-400 font-mono text-[10px] uppercase tracking-widest">TRACKING</span>
+      <div className="flex items-center px-5 h-8 bg-black/50 border-t border-white/[0.06] space-x-6">
+        <div className="flex items-center space-x-2.5">
+          <div className="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.9)]"></div>
+          <span className="text-slate-300 font-mono text-xs uppercase tracking-widest font-semibold">TRACKING:</span>
           <span className="text-cyan-300 font-mono text-sm font-bold tabular-nums">{satCount.toLocaleString()}</span>
         </div>
-        <div className="w-px h-3 bg-white/10" />
-        <div className="flex items-center space-x-2">
-          <div className="w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_6px_rgba(255,0,85,0.8)] animate-pulse"></div>
-          <span className="text-slate-400 font-mono text-[10px] uppercase tracking-widest">CONJUNCTIONS</span>
+        <div className="w-px h-3.5 bg-white/20" />
+        <div className="flex items-center space-x-2.5">
+          <div className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(255,0,85,0.9)] animate-pulse"></div>
+          <span className="text-slate-300 font-mono text-xs uppercase tracking-widest font-semibold">CONJUNCTIONS:</span>
           <span className="text-red-400 font-mono text-sm font-bold tabular-nums">{threatCount}</span>
         </div>
         <div className="flex-1" />
-        <span className="text-slate-600 font-mono text-[9px] uppercase tracking-widest hidden md:block">LEO · MEO · GEO FULL SPECTRUM</span>
+        <span className="text-slate-400 font-mono text-[11px] uppercase tracking-widest font-semibold hidden md:block">LEO · MEO · GEO FULL SPECTRUM SSA</span>
       </div>
 
       {/* Bottom glow line */}
-      <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-cyan-500/40 to-transparent" />
+      <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-cyan-500/50 to-transparent" />
     </div>
   );
 }

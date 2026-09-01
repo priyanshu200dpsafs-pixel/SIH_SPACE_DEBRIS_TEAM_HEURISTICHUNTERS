@@ -42,60 +42,60 @@ export default function SolarWxView() {
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-[var(--color-void)]">
       {/* Header */}
-      <div className="px-6 py-4 border-b border-white/5 bg-black/40 flex items-center justify-between">
+      <div className="px-8 py-5 border-b border-white/10 bg-black/60 shadow-lg flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold tracking-widest uppercase text-white flex items-center gap-2">
-            <Sun className="text-amber-400" size={22} />
+          <h1 className="text-2xl font-bold tracking-widest uppercase text-white flex items-center gap-3">
+            <Sun className="text-amber-400" size={26} />
             SOLAR & SPACE WEATHER
           </h1>
-          <p className="text-xs text-white/40 font-mono mt-1 uppercase tracking-wider">
+          <p className="text-xs text-slate-400 font-mono mt-1.5 uppercase tracking-wider font-semibold">
             Real-time solar flux & geomagnetic indices · Atmospheric drag model inputs
           </p>
         </div>
         <button
           onClick={fetchWeather}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-xs font-mono uppercase tracking-wider text-white/60 hover:text-white transition-colors cursor-pointer"
+          className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 border border-white/15 rounded-lg text-xs font-mono uppercase tracking-wider text-slate-200 hover:text-white transition-colors cursor-pointer font-bold"
         >
-          <RefreshCw size={12} />
-          Refresh
+          <RefreshCw size={14} />
+          Refresh Data
         </button>
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto p-8">
         {loading ? (
-          <div className="flex items-center justify-center h-full text-white/30 font-mono text-sm uppercase tracking-widest">
+          <div className="flex items-center justify-center h-full text-slate-400 font-mono text-base uppercase tracking-widest">
             Fetching space weather data...
           </div>
         ) : (
-          <div className="max-w-4xl mx-auto space-y-6">
+          <div className="max-w-5xl mx-auto space-y-8">
             {/* Primary Indices */}
-            <div className="grid grid-cols-2 gap-6">
+            <div className="grid grid-cols-2 gap-8">
               {/* F10.7 Solar Flux */}
-              <div className="bg-black/40 border border-white/10 rounded-lg p-6">
+              <div className="bg-black/60 border border-white/10 rounded-2xl p-7 shadow-2xl">
                 <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <Sun size={18} className="text-amber-400" />
-                    <span className="text-[10px] uppercase tracking-widest text-white/50 font-semibold">F10.7 SOLAR FLUX</span>
+                  <div className="flex items-center gap-2.5">
+                    <Sun size={22} className="text-amber-400" />
+                    <span className="text-xs uppercase tracking-widest text-slate-300 font-bold">F10.7 SOLAR FLUX</span>
                   </div>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${f107Level.bg} ${f107Level.color}`}>
+                  <span className={`text-xs font-bold px-3 py-1 rounded-md border uppercase tracking-wider ${f107Level.bg} ${f107Level.color}`}>
                     {f107Level.label}
                   </span>
                 </div>
-                <div className="text-5xl font-bold text-amber-300 font-mono tabular-nums mb-2">
+                <div className="text-6xl font-bold text-amber-300 font-mono tabular-nums mb-2">
                   {f107.toFixed(1)}
                 </div>
-                <div className="text-xs text-white/40 font-mono">SFU (Solar Flux Units · 10⁻²² W/m²/Hz)</div>
+                <div className="text-xs text-slate-400 font-mono font-semibold">SFU (Solar Flux Units · 10⁻²² W/m²/Hz)</div>
                 
                 {/* Gauge Bar */}
-                <div className="mt-4 space-y-1.5">
-                  <div className="flex justify-between text-[9px] font-mono text-white/30 uppercase">
+                <div className="mt-5 space-y-2">
+                  <div className="flex justify-between text-xs font-mono text-slate-400 font-bold uppercase">
                     <span>Low (70)</span>
                     <span>Moderate (120)</span>
                     <span>High (180)</span>
                     <span>Extreme (250+)</span>
                   </div>
-                  <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden">
+                  <div className="w-full h-3 bg-white/10 rounded-full overflow-hidden">
                     <div
                       className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-yellow-500 to-red-500 transition-all duration-500"
                       style={{ width: `${Math.min((f107 / 300) * 100, 100)}%` }}
@@ -103,36 +103,36 @@ export default function SolarWxView() {
                   </div>
                 </div>
 
-                <div className="mt-4 text-[10px] text-white/50 font-mono leading-relaxed border-l-2 border-amber-500/40 pl-3 bg-amber-500/5 py-2">
+                <div className="mt-5 text-xs text-slate-300 font-mono leading-relaxed border-l-3 border-amber-500/60 pl-3.5 bg-amber-500/10 py-2.5 rounded-r-lg">
                   F10.7 solar radio flux is the primary driver of thermospheric density. Higher values mean increased atmospheric drag on LEO objects, causing faster orbital decay and larger TLE prediction errors.
                 </div>
               </div>
 
               {/* Ap Geomagnetic Index */}
-              <div className="bg-black/40 border border-white/10 rounded-lg p-6">
+              <div className="bg-black/60 border border-white/10 rounded-2xl p-7 shadow-2xl">
                 <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <Activity size={18} className="text-purple-400" />
-                    <span className="text-[10px] uppercase tracking-widest text-white/50 font-semibold">Ap GEOMAGNETIC INDEX</span>
+                  <div className="flex items-center gap-2.5">
+                    <Activity size={22} className="text-purple-400" />
+                    <span className="text-xs uppercase tracking-widest text-slate-300 font-bold">Ap GEOMAGNETIC INDEX</span>
                   </div>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${apLevel.bg} ${apLevel.color}`}>
+                  <span className={`text-xs font-bold px-3 py-1 rounded-md border uppercase tracking-wider ${apLevel.bg} ${apLevel.color}`}>
                     {apLevel.label}
                   </span>
                 </div>
-                <div className="text-5xl font-bold text-purple-300 font-mono tabular-nums mb-2">
+                <div className="text-6xl font-bold text-purple-300 font-mono tabular-nums mb-2">
                   {ap.toFixed(0)}
                 </div>
-                <div className="text-xs text-white/40 font-mono">nT (nanotesla equivalent)</div>
+                <div className="text-xs text-slate-400 font-mono font-semibold">nT (nanotesla equivalent)</div>
 
                 {/* Gauge Bar */}
-                <div className="mt-4 space-y-1.5">
-                  <div className="flex justify-between text-[9px] font-mono text-white/30 uppercase">
+                <div className="mt-5 space-y-2">
+                  <div className="flex justify-between text-xs font-mono text-slate-400 font-bold uppercase">
                     <span>Quiet (0)</span>
                     <span>Unsettled (15)</span>
                     <span>Active (30)</span>
                     <span>Storm (50+)</span>
                   </div>
-                  <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden">
+                  <div className="w-full h-3 bg-white/10 rounded-full overflow-hidden">
                     <div
                       className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-yellow-500 to-red-500 transition-all duration-500"
                       style={{ width: `${Math.min((ap / 80) * 100, 100)}%` }}
@@ -140,47 +140,47 @@ export default function SolarWxView() {
                   </div>
                 </div>
 
-                <div className="mt-4 text-[10px] text-white/50 font-mono leading-relaxed border-l-2 border-purple-500/40 pl-3 bg-purple-500/5 py-2">
+                <div className="mt-5 text-xs text-slate-300 font-mono leading-relaxed border-l-3 border-purple-500/60 pl-3.5 bg-purple-500/10 py-2.5 rounded-r-lg">
                   {apLevel.desc} The Ap index measures planetary geomagnetic disturbance levels. During storms, Joule heating dramatically increases thermospheric density at LEO altitudes.
                 </div>
               </div>
             </div>
 
             {/* Impact on Pipeline */}
-            <div className="bg-black/40 border border-white/10 rounded-lg p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <Gauge size={18} className="text-cyan-400" />
-                <span className="text-[10px] uppercase tracking-widest text-white/50 font-semibold">PIPELINE IMPACT ASSESSMENT</span>
+            <div className="bg-black/60 border border-white/10 rounded-2xl p-7 shadow-2xl space-y-5">
+              <div className="flex items-center gap-2.5 mb-2">
+                <Gauge size={22} className="text-cyan-400" />
+                <span className="text-xs uppercase tracking-widest text-slate-300 font-bold">PIPELINE IMPACT ASSESSMENT</span>
               </div>
 
-              <div className="grid grid-cols-3 gap-4 text-xs font-mono">
-                <div className="bg-white/5 rounded p-4 text-center space-y-2">
-                  <div className="text-[9px] text-white/40 uppercase tracking-wider">Drag Perturbation</div>
-                  <div className={`text-lg font-bold ${f107 > 150 || ap > 30 ? 'text-orange-400' : 'text-emerald-400'}`}>
+              <div className="grid grid-cols-3 gap-5 text-xs font-mono">
+                <div className="bg-white/[0.04] border border-white/10 rounded-xl p-5 text-center space-y-2">
+                  <div className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Drag Perturbation</div>
+                  <div className={`text-xl font-bold ${f107 > 150 || ap > 30 ? 'text-orange-400' : 'text-emerald-400'}`}>
                     {f107 > 150 || ap > 30 ? 'ELEVATED' : 'NOMINAL'}
                   </div>
-                  <div className="text-[10px] text-white/30">Atmospheric drag force coefficient</div>
+                  <div className="text-xs text-slate-400">Atmospheric drag force coefficient</div>
                 </div>
-                <div className="bg-white/5 rounded p-4 text-center space-y-2">
-                  <div className="text-[9px] text-white/40 uppercase tracking-wider">TLE Propagation Accuracy</div>
-                  <div className={`text-lg font-bold ${f107 > 180 ? 'text-red-400' : f107 > 120 ? 'text-yellow-400' : 'text-emerald-400'}`}>
+                <div className="bg-white/[0.04] border border-white/10 rounded-xl p-5 text-center space-y-2">
+                  <div className="text-xs text-slate-400 uppercase tracking-wider font-semibold">TLE Propagation Accuracy</div>
+                  <div className={`text-xl font-bold ${f107 > 180 ? 'text-red-400' : f107 > 120 ? 'text-yellow-400' : 'text-emerald-400'}`}>
                     {f107 > 180 ? 'DEGRADED' : f107 > 120 ? 'MODERATE' : 'HIGH'}
                   </div>
-                  <div className="text-[10px] text-white/30">SGP4 analytical model fidelity</div>
+                  <div className="text-xs text-slate-400">SGP4 analytical model fidelity</div>
                 </div>
-                <div className="bg-white/5 rounded p-4 text-center space-y-2">
-                  <div className="text-[9px] text-white/40 uppercase tracking-wider">Conjunction Screening</div>
-                  <div className={`text-lg font-bold ${ap > 50 ? 'text-red-400' : 'text-emerald-400'}`}>
+                <div className="bg-white/[0.04] border border-white/10 rounded-xl p-5 text-center space-y-2">
+                  <div className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Conjunction Screening</div>
+                  <div className={`text-xl font-bold ${ap > 50 ? 'text-red-400' : 'text-emerald-400'}`}>
                     {ap > 50 ? 'CAUTION' : 'OPERATIONAL'}
                   </div>
-                  <div className="text-[10px] text-white/30">DOP853 numerical confidence</div>
+                  <div className="text-xs text-slate-400">DOP853 numerical confidence</div>
                 </div>
               </div>
 
               {(f107 > 180 || ap > 50) && (
-                <div className="mt-4 bg-red-950/30 border border-red-500/30 rounded p-3 flex items-start gap-2 text-xs text-red-300">
-                  <AlertTriangle size={14} className="text-red-400 mt-0.5 shrink-0" />
-                  <span>
+                <div className="mt-5 bg-red-950/40 border border-red-500/50 rounded-xl p-4 flex items-start gap-3 text-xs text-red-200">
+                  <AlertTriangle size={18} className="text-red-400 mt-0.5 shrink-0" />
+                  <span className="leading-relaxed">
                     <strong>Advisory:</strong> Current space weather conditions may degrade conjunction prediction accuracy. 
                     Consider increasing screening thresholds and requesting fresh TLE updates from 18 SDS.
                   </span>
