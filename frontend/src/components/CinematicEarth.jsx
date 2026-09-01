@@ -229,38 +229,35 @@ export default function CinematicEarth({ selectedConjunction }) {
     }
   }, [lockedSatellite]);
 
-  // Sync auto-rotation state with controls
+  // Sync auto-rotation state with orientation-preserving animation
   useEffect(() => {
-    if (globeEl.current) {
-      const controls = globeEl.current.controls();
-      if (controls) {
-        controls.autoRotate = autoRotate;
-        controls.autoRotateSpeed = 0.4;
+    if (!autoRotate) return;
+    let animId;
+    const rotateStep = () => {
+      const camera = globeEl.current?.camera();
+      if (camera) {
+        const up = camera.up.clone().normalize();
+        const q = new THREE.Quaternion().setFromAxisAngle(up, 0.0035);
+        camera.position.applyQuaternion(q);
+        camera.lookAt(0, 0, 0);
       }
-    }
+      animId = requestAnimationFrame(rotateStep);
+    };
+    animId = requestAnimationFrame(rotateStep);
+    return () => cancelAnimationFrame(animId);
   }, [autoRotate]);
 
   // Toolbar Actions
   const toggleTheme = () => setEarthTheme(prev => prev === 'blue-marble' ? 'night' : 'blue-marble');
   const toggleSwarm = () => setShowSwarm(prev => !prev);
   const toggleAutoRotate = () => setAutoRotate(prev => !prev);
-  const viewNorthPole = () => {
-    if (globeEl.current) {
-      globeEl.current.controls().autoRotate = false;
-      setAutoRotate(false);
-      globeEl.current.pointOfView({ lat: 89.9, lng: 0, altitude: 2.0 }, 900);
-    }
-  };
-  const viewSouthPole = () => {
-    if (globeEl.current) {
-      globeEl.current.controls().autoRotate = false;
-      setAutoRotate(false);
-      globeEl.current.pointOfView({ lat: -89.9, lng: 0, altitude: 2.0 }, 900);
-    }
-  };
   const resetCamera = () => {
     unlockSatellite();
     if (globeEl.current) {
+      const camera = globeEl.current.camera();
+      if (camera) {
+        camera.up.set(0, 1, 0);
+      }
       globeEl.current.pointOfView({ lat: 0, lng: 0, altitude: 2.2 }, 1000);
     }
   };
@@ -558,24 +555,63 @@ export default function CinematicEarth({ selectedConjunction }) {
     return () => window.removeEventListener('mousemove', trackMouse);
   }, []);
 
-  // 5. Interaction & Custom Raycasting (Bulletproof)
+  // 5. Free 360° Trackball Drag on ANY 3D Axis with Hand Cursor (Grab / Grabbing)
   useEffect(() => {
+    let isDragging = false;
     let downPos = { x: 0, y: 0 };
+    let lastPos = { x: 0, y: 0 };
     const raycaster = new THREE.Raycaster();
-    raycaster.params.Points.threshold = 4.0; // Large threshold to make hovering easy
+    raycaster.params.Points.threshold = 4.0;
 
     const onPointerDown = (e) => {
+      // Don't intercept clicks on UI buttons, inputs, panels or navigation
+      if (e.target.closest('button, input, .glass-panel, .glass-panel-bright, [role="button"], a, select, nav')) {
+        return;
+      }
+      isDragging = true;
       downPos = { x: e.clientX, y: e.clientY };
-    };
-
-    const onPointerUp = (e) => {
-      const dist = Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y);
-      if (dist < 5 && hoveredSatRef.current) {
-        lockOnSatellite(hoveredSatRef.current);
+      lastPos = { x: e.clientX, y: e.clientY };
+      document.body.style.cursor = 'grabbing';
+      if (autoRotate) {
+        setAutoRotate(false);
       }
     };
 
-    const raycastSwarm = (e) => {
+    const onPointerMove = (e) => {
+      if (isDragging) {
+        document.body.style.cursor = 'grabbing';
+        const dx = e.clientX - lastPos.x;
+        const dy = e.clientY - lastPos.y;
+        lastPos = { x: e.clientX, y: e.clientY };
+
+        const camera = globeEl.current?.camera();
+        if (camera && (dx !== 0 || dy !== 0)) {
+          // Camera local right and up vectors in world coordinate space
+          const right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0).normalize();
+          const up = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1).normalize();
+
+          const sensitivity = 0.005;
+
+          // Compute 3D rotation axis perpendicular to drag vector
+          const rotAxis = new THREE.Vector3()
+            .addScaledVector(right, -dy)
+            .addScaledVector(up, -dx)
+            .normalize();
+
+          const angle = Math.hypot(dx, dy) * sensitivity;
+
+          if (angle > 0.0001 && rotAxis.lengthSq() > 0.5) {
+            // Apply 3D Quaternion rotation to camera position AND camera up vector (Zero Gimbal Lock)
+            const q = new THREE.Quaternion().setFromAxisAngle(rotAxis, angle);
+            camera.position.applyQuaternion(q);
+            camera.up.applyQuaternion(q);
+            camera.lookAt(0, 0, 0);
+          }
+        }
+        return;
+      }
+
+      // Satellite Hover Raycasting
       if (hoveredThreatRef.current) {
         setHoveredSat(hoveredThreatRef.current);
         document.body.style.cursor = 'pointer';
@@ -606,19 +642,48 @@ export default function CinematicEarth({ selectedConjunction }) {
       }
       
       setHoveredSat(null);
-      document.body.style.cursor = 'default';
+      document.body.style.cursor = 'grab';
+    };
+
+    const onPointerUp = (e) => {
+      if (isDragging) {
+        isDragging = false;
+        const dist = Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y);
+        if (dist < 5 && hoveredSatRef.current) {
+          lockOnSatellite(hoveredSatRef.current);
+        }
+        document.body.style.cursor = hoveredSatRef.current ? 'pointer' : 'grab';
+      }
+    };
+
+    const onWheel = (e) => {
+      // Don't zoom when scrolling within sidebars/feed
+      if (e.target.closest('.overflow-y-auto, .overflow-auto, input, select')) {
+        return;
+      }
+      const camera = globeEl.current?.camera();
+      if (!camera) return;
+      const zoomFactor = e.deltaY < 0 ? 0.92 : 1.08;
+      const currentDist = camera.position.length();
+      const newDist = THREE.MathUtils.clamp(currentDist * zoomFactor, 105, 1200);
+      camera.position.setLength(newDist);
     };
 
     window.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', onPointerUp);
-    window.addEventListener('mousemove', raycastSwarm);
+    window.addEventListener('wheel', onWheel, { passive: true });
+    
+    document.body.style.cursor = 'grab';
+
     return () => {
       window.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
-      window.removeEventListener('mousemove', raycastSwarm);
+      window.removeEventListener('wheel', onWheel);
       document.body.style.cursor = 'default';
     };
-  }, []);
+  }, [autoRotate]);
 
   // Set up Scene & Ghost Swarm Particle System
   useEffect(() => {
@@ -695,22 +760,7 @@ export default function CinematicEarth({ selectedConjunction }) {
 
       const controls = globeEl.current.controls();
       if (controls) {
-        controls.autoRotate = false; // Manual free rotation by default
-        controls.autoRotateSpeed = 0.4;
-        controls.enableRotate = true;
-        controls.rotateSpeed = 1.1;
-        controls.enableZoom = true;
-        controls.zoomSpeed = 1.0;
-        controls.enablePan = true;
-        controls.panSpeed = 0.8;
-        controls.screenSpacePanning = true;
-        controls.enableDamping = true;
-        controls.dampingFactor = 0.08;
-        controls.minDistance = 101;
-        controls.maxDistance = 1500;
-        // Unclamp polar rotation so you can freely rotate directly over poles and any angle
-        controls.minPolarAngle = 0.001;
-        controls.maxPolarAngle = Math.PI - 0.001;
+        controls.enabled = false; // Disable rigid OrbitControls so our Free 360 Trackball handles 6-DOF rotation
       }
       globeEl.current.pointOfView({ altitude: 2.2 });
     };
@@ -818,24 +868,6 @@ export default function CinematicEarth({ selectedConjunction }) {
           title="Toggle Global Filters"
         >
           <SlidersHorizontal size={19} />
-        </button>
-        
-        <div className="w-px h-6 bg-white/20 mx-0.5"></div>
-
-        {/* Quick Camera Angle Presets */}
-        <button 
-          onClick={viewNorthPole}
-          className="px-2.5 py-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors text-xs font-mono font-bold uppercase cursor-pointer"
-          title="Top-Down North Pole View"
-        >
-          North
-        </button>
-        <button 
-          onClick={viewSouthPole}
-          className="px-2.5 py-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors text-xs font-mono font-bold uppercase cursor-pointer"
-          title="Bottom-Up South Pole View"
-        >
-          South
         </button>
         
         <div className="w-px h-6 bg-white/20 mx-0.5"></div>
