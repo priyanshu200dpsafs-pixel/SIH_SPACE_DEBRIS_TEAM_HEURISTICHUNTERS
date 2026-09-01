@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { AlertTriangle, Crosshair, ChevronRight, ChevronLeft } from 'lucide-react';
 import TopNav from './components/TopNav';
 import CinematicEarth from './components/CinematicEarth';
 import ThreatFeed from './components/ThreatFeed';
@@ -16,6 +17,8 @@ export default function App() {
   const [selectedConjunctionId, setSelectedConjunctionId] = useState(null);
   const [showTrustView, setShowTrustView] = useState(false);
   const [activeTab, setActiveTab] = useState('3d-radar');
+  const [showLeftDrawer, setShowLeftDrawer] = useState(true);
+  const [showRightDrawer, setShowRightDrawer] = useState(true);
 
   useEffect(() => {
     // Fetch high-priority conjunctions for the feed
@@ -42,6 +45,8 @@ export default function App() {
       const found = conjunctions.find(c => c.id === conjOrId);
       if (found) setSelectedConjunction(found);
     }
+    // Auto-open right drawer when a conjunction is selected to show analytics
+    setShowRightDrawer(true);
   };
 
   const handleSelectFromMatrix = (conjOrId) => {
@@ -66,23 +71,51 @@ export default function App() {
             <div className="scan-line" />
           </div>
 
-          {/* HUD Panels Layer */}
-          <div className="absolute inset-0 z-10 pointer-events-none flex justify-between">
+          {/* HUD Panels Layer (Floating Drawers) */}
+          <div className="absolute inset-0 z-10 pointer-events-none flex justify-between p-3.5 overflow-hidden">
             {/* LEFT PANEL: Threat Feed */}
-            <div className="pointer-events-auto shadow-2xl shadow-black/80 h-full">
+            <div className={`pointer-events-auto transition-transform duration-300 ease-out h-full ${showLeftDrawer ? 'translate-x-0' : '-translate-x-[420px]'}`}>
               <ThreatFeed 
                 conjunctions={conjunctions} 
                 selectedPairId={selectedConjunctionId}
                 onSelectPair={handleSelectConjunction}
+                onCollapse={() => setShowLeftDrawer(false)}
               />
             </div>
 
+            {/* Left Edge Expand Tab (When Threat Feed is Collapsed) */}
+            {!showLeftDrawer && (
+              <button 
+                onClick={() => setShowLeftDrawer(true)} 
+                className="absolute left-3.5 top-5 z-20 flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-950/90 border border-cyan-500/40 text-cyan-300 font-mono text-xs font-bold uppercase tracking-wider backdrop-blur-2xl shadow-[0_0_20px_rgba(0,0,0,0.9)] hover:bg-cyan-950/70 hover:border-cyan-400 transition-all cursor-pointer pointer-events-auto"
+                title="Expand Threat Feed"
+              >
+                <AlertTriangle size={15} className="text-red-400" />
+                <span>THREAT FEED ({conjunctions.length})</span>
+                <ChevronRight size={15} />
+              </button>
+            )}
+
             {/* RIGHT PANEL: Event Intelligence */}
-            <div className="pointer-events-auto shadow-2xl shadow-black/80 h-full">
+            <div className={`pointer-events-auto transition-transform duration-300 ease-out h-full ${showRightDrawer ? 'translate-x-0' : 'translate-x-[480px]'}`}>
               <EventIntelligencePanel 
                 conjunction={selectedConjunction} 
+                onCollapse={() => setShowRightDrawer(false)}
               />
             </div>
+
+            {/* Right Edge Expand Tab (When Event Intel is Collapsed) */}
+            {!showRightDrawer && (
+              <button 
+                onClick={() => setShowRightDrawer(true)} 
+                className="absolute right-3.5 top-5 z-20 flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-950/90 border border-cyan-500/40 text-cyan-300 font-mono text-xs font-bold uppercase tracking-wider backdrop-blur-2xl shadow-[0_0_20px_rgba(0,0,0,0.9)] hover:bg-cyan-950/70 hover:border-cyan-400 transition-all cursor-pointer pointer-events-auto"
+                title="Expand Event Analysis"
+              >
+                <ChevronLeft size={15} />
+                <Crosshair size={15} className="text-cyan-400" />
+                <span>EVENT INTEL</span>
+              </button>
+            )}
           </div>
         </div>
 

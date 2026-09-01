@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState, useMemo } from 'react';
 import Globe from 'react-globe.gl';
 import * as satellite from 'satellite.js';
 import * as THREE from 'three';
-import { Satellite, Globe as GlobeIcon, RotateCw, SlidersHorizontal, Play, Pause, Compass, Orbit } from 'lucide-react';
+import { Satellite, Globe as GlobeIcon, RotateCw, SlidersHorizontal, Play, Pause, Compass, Orbit, Search, X } from 'lucide-react';
 import SatellitePanel from './panels/SatellitePanel';
 
 const GLOBE_RADIUS = 100;
@@ -833,30 +833,76 @@ export default function CinematicEarth({ selectedConjunction }) {
         )}
       </div>
 
-      {/* Toolbar Layer */}
-      <div className="absolute top-6 left-1/2 -translate-x-1/2 z-40 flex items-center bg-[#0d121f]/95 border border-cyan-500/30 rounded-xl shadow-2xl backdrop-blur-xl px-2.5 py-1.5 gap-1.5">
+      {/* Center Floating HUD Toolbar + Integrated Search */}
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 flex items-center bg-[#070b14]/90 border border-cyan-500/30 rounded-2xl shadow-2xl backdrop-blur-2xl p-1.5 gap-2 max-w-[90vw]">
+        {/* Integrated Satellite Search */}
+        <div className="relative w-56 sm:w-72">
+          <input 
+            type="text" 
+            placeholder="Search 16,000+ satellites..."
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setIsDropdownOpen(true);
+            }}
+            onFocus={() => setIsDropdownOpen(true)}
+            className="w-full bg-slate-900/90 text-cyan-200 font-mono text-xs px-3 py-1.5 pl-8 rounded-xl border border-white/10 focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-all placeholder:text-slate-500"
+          />
+          <div className="absolute left-2.5 top-2 pointer-events-none text-slate-400">
+            <Search size={13} />
+          </div>
+          {searchQuery && (
+            <button 
+              onClick={() => { setSearchQuery(''); setIsDropdownOpen(false); }}
+              className="absolute right-2 top-1.5 text-slate-400 hover:text-white cursor-pointer"
+            >
+              <X size={13} />
+            </button>
+          )}
+
+          {isDropdownOpen && searchResults.length > 0 && (
+            <div className="absolute left-0 top-full mt-2 w-72 sm:w-80 glass-panel-bright overflow-hidden rounded-xl shadow-2xl border border-cyan-500/30 bg-slate-950/95 max-h-72 overflow-y-auto z-50">
+              {searchResults.map((sat, i) => (
+                <div 
+                  key={sat.norad_id}
+                  onClick={() => lockOnSatellite(sat)}
+                  className="px-3 py-2 font-mono text-xs cursor-pointer hover:bg-cyan-500/20 border-b border-white/[0.06] transition-colors flex justify-between items-center"
+                >
+                  <div className="flex items-center space-x-2 truncate">
+                    {sat.isHighRisk && <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shrink-0" />}
+                    <span className="text-white font-medium truncate">{sat.name}</span>
+                  </div>
+                  <span className="text-cyan-400 text-[10px] font-bold shrink-0 ml-2">#{sat.norad_id}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="w-px h-5 bg-white/15"></div>
+
         <button 
           onClick={toggleAutoRotate}
-          className={`p-2.5 rounded-lg transition-colors cursor-pointer ${autoRotate ? 'text-cyan-300 bg-cyan-950/60 border border-cyan-500/50 shadow-[0_0_12px_rgba(34,211,238,0.3)]' : 'text-slate-400 hover:text-white hover:bg-white/10'}`}
-          title={autoRotate ? "Pause Auto-Rotation (Freeze Angle)" : "Start Auto-Rotation"}
+          className={`p-2 rounded-xl transition-all cursor-pointer ${autoRotate ? 'text-cyan-300 bg-cyan-950/70 border border-cyan-500/50 shadow-[0_0_10px_rgba(34,211,238,0.3)]' : 'text-slate-400 hover:text-white hover:bg-white/10'}`}
+          title={autoRotate ? "Pause Auto-Rotation" : "Start Auto-Rotation"}
         >
-          {autoRotate ? <Pause size={19} /> : <Play size={19} />}
+          {autoRotate ? <Pause size={16} /> : <Play size={16} />}
         </button>
 
         <button 
           onClick={toggleSwarm}
-          className={`p-2.5 rounded-lg transition-colors cursor-pointer ${showSwarm ? 'text-cyan-300 bg-cyan-950/60 border border-cyan-500/40 shadow-[0_0_10px_rgba(34,211,238,0.2)]' : 'text-slate-400 hover:text-white hover:bg-white/10'}`}
-          title="Toggle Satellite Swarm"
+          className={`p-2 rounded-xl transition-all cursor-pointer ${showSwarm ? 'text-cyan-300 bg-cyan-950/70 border border-cyan-500/40 shadow-[0_0_10px_rgba(34,211,238,0.2)]' : 'text-slate-400 hover:text-white hover:bg-white/10'}`}
+          title="Toggle Satellite Swarm (16,000+ objects)"
         >
-          <Satellite size={19} />
+          <Satellite size={16} />
         </button>
 
         <button 
           onClick={toggleTheme}
-          className={`p-2.5 rounded-lg transition-colors cursor-pointer ${earthTheme === 'night' ? 'text-cyan-300 bg-cyan-950/60 border border-cyan-500/40 shadow-[0_0_10px_rgba(34,211,238,0.2)]' : 'text-slate-400 hover:text-white hover:bg-white/10'}`}
-          title="Toggle Earth View (Day/Night)"
+          className={`p-2 rounded-xl transition-all cursor-pointer ${earthTheme === 'night' ? 'text-cyan-300 bg-cyan-950/70 border border-cyan-500/40 shadow-[0_0_10px_rgba(34,211,238,0.2)]' : 'text-slate-400 hover:text-white hover:bg-white/10'}`}
+          title="Toggle Earth Day/Night Theme"
         >
-          <GlobeIcon size={19} />
+          <GlobeIcon size={16} />
         </button>
 
         <button 
@@ -864,20 +910,20 @@ export default function CinematicEarth({ selectedConjunction }) {
             setActivePanelTab('filters');
             setIsPanelOpen(prev => !prev || activePanelTab !== 'filters');
           }}
-          className={`p-2.5 rounded-lg transition-colors cursor-pointer ${isPanelOpen && activePanelTab === 'filters' ? 'text-cyan-300 bg-cyan-950/60 border border-cyan-500/40 shadow-[0_0_10px_rgba(34,211,238,0.2)]' : 'text-slate-400 hover:text-white hover:bg-white/10'}`}
-          title="Toggle Global Filters"
+          className={`p-2 rounded-xl transition-all cursor-pointer ${isPanelOpen && activePanelTab === 'filters' ? 'text-cyan-300 bg-cyan-950/70 border border-cyan-500/40 shadow-[0_0_10px_rgba(34,211,238,0.2)]' : 'text-slate-400 hover:text-white hover:bg-white/10'}`}
+          title="Global Filters"
         >
-          <SlidersHorizontal size={19} />
+          <SlidersHorizontal size={16} />
         </button>
         
-        <div className="w-px h-6 bg-white/20 mx-0.5"></div>
+        <div className="w-px h-5 bg-white/15"></div>
         
         <button 
           onClick={resetCamera}
-          className="p-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+          className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
           title="Reset View & Unlock"
         >
-          <RotateCw size={19} />
+          <RotateCw size={16} />
         </button>
       </div>
 
@@ -963,46 +1009,6 @@ export default function CinematicEarth({ selectedConjunction }) {
           return el;
         }}
       />
-
-      {/* SEARCH BAR */}
-      <div className="absolute top-6 left-6 z-[100] w-96">
-        <div className="relative">
-          <input 
-            type="text" 
-            placeholder="Search satellite or NORAD ID..."
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setIsDropdownOpen(true);
-            }}
-            onFocus={() => setIsDropdownOpen(true)}
-            className="w-full glass-panel-bright text-cyan-200 font-mono text-sm px-4.5 py-3 rounded-lg focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-all duration-300 placeholder:text-slate-500 bg-slate-950/80"
-            style={{ borderColor: searchQuery ? 'rgba(34,211,238,0.7)' : undefined }}
-          />
-          <div className="absolute right-3.5 top-3.5 pointer-events-none text-cyan-400">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          </div>
-        </div>
-
-        {isDropdownOpen && searchResults.length > 0 && (
-          <div className="mt-2 glass-panel-bright overflow-hidden rounded-lg shadow-2xl border border-cyan-500/30 bg-slate-950/95">
-            {searchResults.map((sat, i) => (
-              <div 
-                key={sat.norad_id}
-                onClick={() => lockOnSatellite(sat)}
-                className="px-4.5 py-3 font-mono text-sm cursor-pointer hover:bg-cyan-500/20 border-b border-white/[0.06] transition-all duration-200 flex justify-between items-center"
-                style={{ animation: `staggerFadeIn 0.3s ease-out ${i * 0.05}s backwards` }}
-              >
-                <div className="flex items-center space-x-2.5">
-                  {sat.isHighRisk && <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />}
-                  <span className="text-white font-semibold">{sat.name}</span>
-                </div>
-                <span className="text-slate-400 text-xs tabular-nums font-bold">NORAD: {sat.norad_id}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
 
       {/* SATELLITE ANALYTICS & FILTERS PANEL */}
       {isPanelOpen && (

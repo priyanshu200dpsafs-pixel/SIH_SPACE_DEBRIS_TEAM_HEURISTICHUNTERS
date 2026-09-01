@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Crosshair, History, ChevronDown, ChevronUp, TestTube, AlertCircle } from 'lucide-react';
+import { Crosshair, History, ChevronDown, ChevronUp, ChevronRight, TestTube, AlertCircle } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import RiskEvolutionChart from './RiskEvolutionChart';
@@ -10,7 +10,7 @@ function cn(...inputs) {
   return twMerge(clsx(inputs));
 }
 
-export default function EventIntelligencePanel({ conjunction }) {
+export default function EventIntelligencePanel({ conjunction, onCollapse }) {
   const [expandedHistory, setExpandedHistory] = useState(false);
   const [expandedProvenance, setExpandedProvenance] = useState(false);
   const [showSandbox, setShowSandbox] = useState(false);
@@ -18,10 +18,17 @@ export default function EventIntelligencePanel({ conjunction }) {
 
   if (!conjunction) {
     return (
-      <div className="w-96 flex flex-col h-full bg-black/60 backdrop-blur-xl border-l border-white/10 text-white z-10 p-6">
-        <h2 className="text-lg font-bold tracking-widest uppercase text-white/50 mb-4">Event Intelligence</h2>
-        <div className="flex-1 flex flex-col items-center justify-center text-white/30 text-xs font-mono uppercase tracking-widest text-center border border-dashed border-white/10 rounded">
-          <Crosshair size={32} className="mb-2 opacity-50" />
+      <div className="w-[340px] flex flex-col h-full bg-slate-950/85 backdrop-blur-2xl border border-cyan-500/20 rounded-2xl text-white p-5 shadow-2xl">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-base font-bold tracking-widest uppercase text-white/60">Event Intelligence</h2>
+          {onCollapse && (
+            <button onClick={onCollapse} className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10">
+              <ChevronRight size={18} />
+            </button>
+          )}
+        </div>
+        <div className="flex-1 flex flex-col items-center justify-center text-white/40 text-xs font-mono uppercase tracking-widest text-center border border-dashed border-white/10 rounded-xl p-4">
+          <Crosshair size={28} className="mb-2 opacity-50 text-cyan-400" />
           Select a conjunction from <br/> the feed to begin analysis
         </div>
       </div>
@@ -31,16 +38,27 @@ export default function EventIntelligencePanel({ conjunction }) {
   const c = conjunction;
 
   return (
-    <div className="w-[460px] 2xl:w-[500px] flex flex-col h-full bg-black/85 backdrop-blur-2xl border-l border-white/10 text-white z-10 relative pointer-events-auto shadow-2xl">
-      <div className="p-5 border-b border-white/10 bg-black/60 flex justify-between items-center">
-        <div>
-          <h2 className="text-lg font-bold tracking-widest uppercase flex items-center gap-2 text-cyan-300">
-            <Crosshair size={20} />
-            Event Analysis
-          </h2>
-          <p className="text-xs text-slate-400 mt-1 uppercase tracking-wider font-mono font-semibold">
-            Pair ID: {c.id}
-          </p>
+    <div className="w-[380px] 2xl:w-[420px] flex flex-col h-full bg-slate-950/85 backdrop-blur-2xl border border-cyan-500/20 rounded-2xl text-white relative pointer-events-auto shadow-2xl overflow-hidden">
+      <div className="p-4 border-b border-white/10 bg-black/40 flex justify-between items-center">
+        <div className="flex items-center gap-2">
+          {onCollapse && (
+            <button 
+              onClick={onCollapse}
+              className="p-1.5 -ml-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+              title="Collapse Event Analysis"
+            >
+              <ChevronRight size={18} />
+            </button>
+          )}
+          <div>
+            <h2 className="text-base font-bold tracking-widest uppercase flex items-center gap-2 text-cyan-300">
+              <Crosshair size={18} />
+              Event Analysis
+            </h2>
+            <p className="text-[11px] text-slate-400 uppercase tracking-wider font-mono font-semibold truncate max-w-[200px]">
+              {c.object_1?.name || c.id}
+            </p>
+          </div>
         </div>
         
         {c.threat_score !== undefined && c.threat_score !== null && (

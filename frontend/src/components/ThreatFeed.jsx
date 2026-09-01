@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertTriangle, Crosshair } from 'lucide-react';
+import { AlertTriangle, Crosshair, ChevronLeft } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -7,19 +7,30 @@ function cn(...inputs) {
   return twMerge(clsx(inputs));
 }
 
-export default function ThreatFeed({ conjunctions, selectedPairId, onSelectPair }) {
+export default function ThreatFeed({ conjunctions, selectedPairId, onSelectPair, onCollapse }) {
   if (!conjunctions) return <div className="text-white p-6 font-mono text-sm">Loading conjunctions...</div>;
 
   return (
-    <div className="w-[420px] 2xl:w-[460px] flex flex-col h-full bg-black/80 backdrop-blur-2xl border-r border-white/10 text-white z-10 relative pointer-events-auto shadow-2xl">
-      <div className="p-5 border-b border-white/10 bg-black/60">
-        <h2 className="text-lg font-bold tracking-widest uppercase flex items-center gap-2.5 text-white">
-          <AlertTriangle className="text-red-500" size={22} />
-          Threat Feed
-        </h2>
-        <p className="text-xs text-slate-400 mt-1 uppercase tracking-wider font-mono font-semibold">
-          High-Risk Conjunctions · Top {conjunctions.length} Events
-        </p>
+    <div className="w-[350px] 2xl:w-[380px] flex flex-col h-full bg-slate-950/85 backdrop-blur-2xl border border-cyan-500/20 rounded-2xl text-white relative pointer-events-auto shadow-2xl overflow-hidden">
+      <div className="p-4 border-b border-white/10 bg-black/40 flex justify-between items-center">
+        <div>
+          <h2 className="text-base font-bold tracking-widest uppercase flex items-center gap-2 text-white">
+            <AlertTriangle className="text-red-500" size={18} />
+            Threat Feed
+          </h2>
+          <p className="text-[11px] text-slate-400 mt-0.5 uppercase tracking-wider font-mono font-semibold">
+            Top {conjunctions.length} High-Risk Events
+          </p>
+        </div>
+        {onCollapse && (
+          <button 
+            onClick={onCollapse}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+            title="Collapse Threat Feed"
+          >
+            <ChevronLeft size={18} />
+          </button>
+        )}
       </div>
       
       <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-3.5">
