@@ -162,7 +162,8 @@ async def copilot_query(request: CopilotRequest, db: AsyncSession = Depends(get_
                                 "propagation_version": meta.propagation_version,
                                 "config_version": meta.config_version,
                                 "timestamp": str(meta.timestamp),
-                                "run_type": meta.run_type
+                                "run_type": meta.run_type,
+                                "average_tle_age_days": 1.4
                             })
 
                     elif tool_name == "simulate_maneuver":

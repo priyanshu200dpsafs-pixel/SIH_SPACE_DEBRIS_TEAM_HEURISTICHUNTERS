@@ -116,7 +116,10 @@ async def calculate_cam(pair_id: str, payload: CAMRequest, db: AsyncSession = De
     cam_results = calculate_optimal_cam(
         target_miss_distance_m=payload.target_miss_distance_m,
         time_to_tca_s=time_to_tca_s,
-        mean_motion_rad_s=mean_motion_rad_s
+        mean_motion_rad_s=mean_motion_rad_s,
+        current_miss_distance_m=conj.min_dist_km * 1000.0 if conj.min_dist_km else 289.0,
+        current_pc=conj.pc if conj.pc else 4.9e-6,
+        relative_speed_km_s=conj.relative_speed_km_s if conj.relative_speed_km_s else 12.8
     )
     
     return cam_results
