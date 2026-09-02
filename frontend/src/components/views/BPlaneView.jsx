@@ -1,18 +1,77 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Target, Crosshair, ZoomIn, ZoomOut, RotateCcw, AlertTriangle, Shield, Layers, ChevronDown } from 'lucide-react';
 
-export default function BPlaneView({ conjunction, conjunctions }) {
-  const [localConjunctions, setLocalConjunctions] = useState(conjunctions || []);
-  const [selectedId, setSelectedId] = useState(conjunction?.id || (conjunctions?.[0]?.id ?? null));
+// Hardcoded fallback data so the view ALWAYS has something to show
+const FALLBACK_CONJUNCTIONS = [
+  {
+    id: 'STARLINK-30411_STARLINK-32491',
+    object_1: { name: 'STARLINK-30411', norad_id: 54321 },
+    object_2: { name: 'STARLINK-32491', norad_id: 54399 },
+    min_dist_km: 0.289,
+    relative_speed_km_s: 12.85,
+    hbr_m: 25,
+    pc: 4.94e-6
+  },
+  {
+    id: 'GAOFEN-9_COSMOS-DEB',
+    object_1: { name: 'GAOFEN-9 03', norad_id: 45794 },
+    object_2: { name: 'COSMOS 1408 DEB', norad_id: 60425 },
+    min_dist_km: 0.592,
+    relative_speed_km_s: 14.15,
+    hbr_m: 20,
+    pc: 3.89e-5
+  },
+  {
+    id: 'ISS_FENGYUN-DEB',
+    object_1: { name: 'ISS (ZARYA)', norad_id: 25544 },
+    object_2: { name: 'FENGYUN 1C DEB', norad_id: 31142 },
+    min_dist_km: 1.204,
+    relative_speed_km_s: 10.3,
+    hbr_m: 30,
+    pc: 1.12e-7
+  }
+];
+
+class BPlaneErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#030712', color: '#ef4444', fontFamily: 'monospace', padding: 40, flexDirection: 'column', gap: 16 }}>
+          <div style={{ fontSize: 48 }}>⚠️</div>
+          <div style={{ fontSize: 16, fontWeight: 'bold' }}>B-PLANE RENDER ERROR</div>
+          <div style={{ fontSize: 12, color: '#94a3b8', maxWidth: 400, textAlign: 'center' }}>
+            {this.state.error?.message || 'Unknown error'}
+          </div>
+          <button
+            onClick={() => this.setState({ hasError: false, error: null })}
+            style={{ marginTop: 12, padding: '8px 20px', background: '#0891b2', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontFamily: 'monospace', fontWeight: 'bold' }}
+          >
+            RETRY
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function BPlaneInner({ conjunction, conjunctions }) {
+  const [localConjs, setLocalConjs] = useState([]);
+  const [selectedId, setSelectedId] = useState(null);
   const [zoomLevel, setZoomLevel] = useState(1);
-  const [showCovariance, setShowCovariance] = useState(true);
-  const [showRings, setShowRings] = useState(true);
+  const [showCov, setShowCov] = useState(true);
 
-  // Sync / Fetch Conjunctions independently
+  // Load data: prefer props, then fetch, then fallback
   useEffect(() => {
     if (conjunctions && conjunctions.length > 0) {
-      setLocalConjunctions(conjunctions);
-      if (!selectedId) setSelectedId(conjunctions[0].id);
+      setLocalConjs(conjunctions);
+      setSelectedId(prev => prev || conjunctions[0].id);
       return;
     }
 
@@ -21,152 +80,109 @@ export default function BPlaneView({ conjunction, conjunctions }) {
       .then(data => {
         const items = data.items || [];
         if (items.length > 0) {
-          setLocalConjunctions(items);
+          setLocalConjs(items);
           setSelectedId(prev => prev || items[0].id);
         } else {
-          // Demo fallback
-          const fallback = [
-            {
-              id: 'STARLINK-30411_STARLINK-32491',
-              object_1: { name: 'STARLINK-30411', norad_id: 54321 },
-              object_2: { name: 'STARLINK-32491', norad_id: 54399 },
-              min_dist_km: 0.289,
-              relative_speed_km_s: 12.85,
-              hbr_m: 25,
-              pc: 4.94e-6
-            },
-            {
-              id: 'GAOFEN-9_DEBRIS',
-              object_1: { name: 'GAOFEN-9 03', norad_id: 45794 },
-              object_2: { name: 'COSMOS 1408 DEB', norad_id: 60425 },
-              min_dist_km: 0.592,
-              relative_speed_km_s: 14.15,
-              hbr_m: 20,
-              pc: 3.89e-5
-            }
-          ];
-          setLocalConjunctions(fallback);
-          setSelectedId(prev => prev || fallback[0].id);
+          setLocalConjs(FALLBACK_CONJUNCTIONS);
+          setSelectedId(prev => prev || FALLBACK_CONJUNCTIONS[0].id);
         }
       })
       .catch(() => {
-        const fallback = [
-          {
-            id: 'STARLINK-30411_STARLINK-32491',
-            object_1: { name: 'STARLINK-30411', norad_id: 54321 },
-            object_2: { name: 'STARLINK-32491', norad_id: 54399 },
-            min_dist_km: 0.289,
-            relative_speed_km_s: 12.85,
-            hbr_m: 25,
-            pc: 4.94e-6
-          }
-        ];
-        setLocalConjunctions(fallback);
-        setSelectedId(prev => prev || fallback[0].id);
+        setLocalConjs(FALLBACK_CONJUNCTIONS);
+        setSelectedId(prev => prev || FALLBACK_CONJUNCTIONS[0].id);
       });
   }, [conjunctions]);
 
-  // Sync selectedId if active conjunction changes from outside
   useEffect(() => {
-    if (conjunction?.id) {
+    if (conjunction && conjunction.id) {
       setSelectedId(conjunction.id);
     }
-  }, [conjunction?.id]);
+  }, [conjunction]);
 
   const activeConj = useMemo(() => {
-    return localConjunctions?.find(c => c.id === selectedId) || conjunction || localConjunctions?.[0] || null;
-  }, [selectedId, localConjunctions, conjunction]);
+    if (!localConjs || localConjs.length === 0) return FALLBACK_CONJUNCTIONS[0];
+    return localConjs.find(c => c.id === selectedId) || localConjs[0];
+  }, [selectedId, localConjs]);
 
-  // Compute B-plane parameters
-  const bPlaneData = useMemo(() => {
-    if (!activeConj) return null;
-    const miss_km = activeConj.min_dist_km ?? 0.5;
-    const vrel = activeConj.relative_speed_km_s ?? 12.5;
-    const hbr = activeConj.hbr_m ?? 25;
-    const pc = activeConj.pc ?? 0;
-    
-    // Decompose miss vector into B-Plane coordinates (B·T and B·R)
-    const angleRad = Math.atan2(miss_km * 0.58, miss_km * 0.81);
-    const bDotT = miss_km * Math.cos(angleRad) * 1000; // in meters
-    const bDotR = miss_km * Math.sin(angleRad) * 1000; // in meters
-    const bMag = Math.sqrt(bDotT * bDotT + bDotR * bDotR);
-
-    // Semi-major and semi-minor axes of 1-sigma positional uncertainty
-    const sigmaT = Math.max(bMag * 0.35, hbr * 2.5);
-    const sigmaR = Math.max(bMag * 0.18, hbr * 1.2);
-
+  // B-plane math
+  const bp = useMemo(() => {
+    const c = activeConj;
+    if (!c) return null;
+    const miss = c.min_dist_km || 0.5;
+    const vrel = c.relative_speed_km_s || 12.5;
+    const hbr = c.hbr_m || 25;
+    const pc = c.pc || 0;
+    const angle = Math.atan2(miss * 0.58, miss * 0.81);
+    const bT = miss * Math.cos(angle) * 1000;
+    const bR = miss * Math.sin(angle) * 1000;
+    const bMag = Math.sqrt(bT * bT + bR * bR);
     return {
-      bDotT,
-      bDotR,
-      bMag,
-      hbr,
-      vrel,
-      pc,
-      missKm: miss_km,
-      sigmaT,
-      sigmaR,
-      angleDeg: (angleRad * 180 / Math.PI).toFixed(1),
+      bT, bR, bMag, hbr, vrel, pc, miss,
+      sigT: Math.max(bMag * 0.35, hbr * 2.5),
+      sigR: Math.max(bMag * 0.18, hbr * 1.2),
+      deg: ((angle * 180) / Math.PI).toFixed(1),
     };
   }, [activeConj]);
 
-  // Plot scaling (viewBox: -300 to +300)
-  const baseRange = bPlaneData ? Math.max(bPlaneData.bMag * 1.5, bPlaneData.hbr * 5, 400) : 500;
+  const baseRange = bp ? Math.max(bp.bMag * 1.5, bp.hbr * 5, 400) : 500;
   const range = baseRange / zoomLevel;
-  const scale = 240 / range; // scales meters to SVG units
+  const sc = 240 / range;
+
+  const getName = (c, which) => {
+    try {
+      if (which === 1) return c.object_1?.name || 'OBJ-1';
+      return c.object_2?.name || 'OBJ-2';
+    } catch { return 'OBJ'; }
+  };
 
   return (
-    <div className="flex-1 flex flex-col md:flex-row overflow-hidden bg-[var(--color-void)] text-white select-none">
-      {/* LEFT SIDEBAR / MOBILE HEADER: Event Selector */}
-      <div className="w-full md:w-80 lg:w-96 border-b md:border-b-0 md:border-r border-white/10 bg-slate-950/80 backdrop-blur-2xl flex flex-col shrink-0">
-        <div className="p-4 border-b border-white/10 flex justify-between items-center bg-black/40">
-          <div>
-            <h3 className="text-xs uppercase tracking-widest text-cyan-300 font-mono font-bold flex items-center gap-2">
-              <Target size={16} />
-              B-PLANE CONJUNCTIONS
-            </h3>
-            <p className="text-[11px] text-slate-400 font-mono mt-0.5">
-              Select event for 2D encounter geometry
-            </p>
+    <div style={{ display: 'flex', flexDirection: 'row', width: '100%', height: '100%', background: '#030712', color: 'white', fontFamily: "'Inter', system-ui, sans-serif" }}>
+      
+      {/* LEFT SIDEBAR */}
+      <div style={{ width: 340, minWidth: 280, borderRight: '1px solid rgba(255,255,255,0.1)', background: 'rgba(2,6,23,0.9)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ padding: '16px', borderBottom: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.4)' }}>
+          <div style={{ fontSize: 12, fontWeight: 'bold', letterSpacing: 2, color: '#22d3ee', fontFamily: 'monospace', textTransform: 'uppercase' }}>
+            🎯 B-PLANE CONJUNCTIONS
           </div>
-          <span className="text-xs font-mono font-bold bg-cyan-950/60 border border-cyan-500/40 text-cyan-300 px-2.5 py-1 rounded-lg">
-            {localConjunctions?.length || 0}
-          </span>
+          <div style={{ fontSize: 11, color: '#94a3b8', fontFamily: 'monospace', marginTop: 4 }}>
+            Select event · {localConjs.length} loaded
+          </div>
         </div>
 
-        {/* Scrollable Conjunction List */}
-        <div className="flex-1 overflow-y-auto max-h-48 md:max-h-full divide-y divide-white/[0.04]">
-          {localConjunctions?.map((c) => {
-            const isSelected = selectedId === c.id;
-            const obj1 = c.object_1?.name || `NORAD-${c.norad_id_1 || c.id?.split('_')[0]}`;
-            const obj2 = c.object_2?.name || `NORAD-${c.norad_id_2 || c.id?.split('_')[1]}`;
-            const isHighPc = c.pc >= 1e-4;
-
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          {localConjs.map(c => {
+            const isSel = selectedId === c.id;
             return (
               <button
                 key={c.id}
                 onClick={() => { setSelectedId(c.id); setZoomLevel(1); }}
-                className={`w-full text-left p-4 transition-all cursor-pointer flex flex-col gap-1.5 ${
-                  isSelected 
-                    ? 'bg-cyan-500/15 border-l-4 border-l-cyan-400 shadow-[inset_0_0_20px_rgba(34,211,238,0.1)]' 
-                    : 'hover:bg-white/[0.04] border-l-4 border-l-transparent text-slate-300'
-                }`}
+                style={{
+                  width: '100%',
+                  textAlign: 'left',
+                  padding: '14px 16px',
+                  borderBottom: '1px solid rgba(255,255,255,0.04)',
+                  background: isSel ? 'rgba(34,211,238,0.12)' : 'transparent',
+                  borderLeft: isSel ? '4px solid #22d3ee' : '4px solid transparent',
+                  color: 'white',
+                  cursor: 'pointer',
+                  border: 'none',
+                  borderRight: 'none',
+                  borderTop: 'none',
+                  fontFamily: 'inherit',
+                  transition: 'background 0.15s',
+                }}
+                onMouseEnter={e => { if (!isSel) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
+                onMouseLeave={e => { if (!isSel) e.currentTarget.style.background = 'transparent'; }}
               >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="font-bold text-sm text-white truncate max-w-[200px]">
-                    {obj1}
-                  </div>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase font-mono border ${
-                    isHighPc ? 'bg-red-500/20 text-red-400 border-red-500/40' : 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
-                  }`}>
-                    Pc {c.pc?.toExponential(1)}
-                  </span>
+                <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 4, color: isSel ? '#22d3ee' : 'white' }}>
+                  {getName(c, 1)}
                 </div>
-                <div className="text-xs text-slate-400 truncate">
-                  × {obj2}
+                <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 4 }}>
+                  × {getName(c, 2)}
                 </div>
-                <div className="flex items-center gap-3 text-[11px] font-mono text-slate-400 mt-1">
-                  <span>Miss: <b className="text-white">{(c.min_dist_km * 1000).toFixed(0)}m</b></span>
-                  <span>V_rel: <b className="text-cyan-300">{(c.relative_speed_km_s || 12).toFixed(1)} km/s</b></span>
+                <div style={{ fontSize: 11, fontFamily: 'monospace', color: '#64748b', display: 'flex', gap: 12 }}>
+                  <span>Pc: <b style={{ color: (c.pc || 0) >= 1e-4 ? '#f87171' : '#fbbf24' }}>{(c.pc || 0).toExponential(1)}</b></span>
+                  <span>Miss: <b style={{ color: '#e2e8f0' }}>{((c.min_dist_km || 0) * 1000).toFixed(0)}m</b></span>
                 </div>
               </button>
             );
@@ -174,272 +190,163 @@ export default function BPlaneView({ conjunction, conjunctions }) {
         </div>
       </div>
 
-      {/* MAIN VIEW: Responsive B-Plane Plot + Astrodynamics Telemetry */}
-      <div className="flex-1 flex flex-col overflow-y-auto p-4 md:p-6 lg:p-8 items-center justify-center">
-        {!activeConj ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-slate-500 font-mono text-xs uppercase tracking-widest space-y-3">
-            <Target size={48} className="opacity-30 text-cyan-400 animate-pulse" />
-            <div>Select a conjunction to load B-Plane encounter</div>
+      {/* MAIN AREA */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 32, overflow: 'auto' }}>
+        
+        {/* Title + Controls */}
+        <div style={{ width: '100%', maxWidth: 600, display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div>
+            <h2 style={{ fontSize: 16, fontWeight: 800, letterSpacing: 3, textTransform: 'uppercase', margin: 0, color: 'white' }}>
+              🎯 B-PLANE ENCOUNTER
+            </h2>
+            <p style={{ fontSize: 11, color: '#64748b', fontFamily: 'monospace', margin: '4px 0 0' }}>
+              {activeConj ? `${getName(activeConj, 1)} × ${getName(activeConj, 2)}` : 'No event selected'}
+            </p>
           </div>
-        ) : (
-          <div className="w-full max-w-4xl flex flex-col items-center">
-            {/* Header with Details & Controls */}
-            <div className="w-full flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
-              <div>
-                <h2 className="text-base sm:text-lg font-bold tracking-widest uppercase text-white flex items-center gap-2">
-                  <Target className="text-cyan-400" size={22} />
-                  B-PLANE ENCOUNTER GEOMETRY
-                </h2>
-                <p className="text-xs text-slate-400 font-mono mt-0.5">
-                  Target Plane Perpendicular to Relative Velocity Vector $\vec{v}_{rel}$
-                </p>
-              </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button onClick={() => setZoomLevel(z => Math.min(z * 1.3, 4))} style={ctrlBtnStyle}>➕</button>
+            <button onClick={() => setZoomLevel(z => Math.max(z / 1.3, 0.4))} style={ctrlBtnStyle}>➖</button>
+            <button onClick={() => setZoomLevel(1)} style={ctrlBtnStyle}>↺</button>
+            <button onClick={() => setShowCov(v => !v)} style={{ ...ctrlBtnStyle, background: showCov ? 'rgba(34,211,238,0.2)' : 'rgba(255,255,255,0.06)', color: showCov ? '#22d3ee' : '#94a3b8', border: showCov ? '1px solid rgba(34,211,238,0.4)' : '1px solid rgba(255,255,255,0.1)' }}>
+              COV
+            </button>
+          </div>
+        </div>
 
-              {/* Visualization Controls */}
-              <div className="flex items-center gap-1.5 bg-slate-950/80 border border-white/15 rounded-xl p-1 backdrop-blur-xl">
-                <button
-                  onClick={() => setZoomLevel(prev => Math.min(prev * 1.3, 4))}
-                  className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-colors"
-                  title="Zoom In"
-                >
-                  <ZoomIn size={16} />
-                </button>
-                <button
-                  onClick={() => setZoomLevel(prev => Math.max(prev / 1.3, 0.4))}
-                  className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-colors"
-                  title="Zoom Out"
-                >
-                  <ZoomOut size={16} />
-                </button>
-                <button
-                  onClick={() => setZoomLevel(1)}
-                  className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-colors"
-                  title="Reset Zoom"
-                >
-                  <RotateCcw size={16} />
-                </button>
-                <div className="w-px h-4 bg-white/20 mx-1"></div>
-                <button
-                  onClick={() => setShowCovariance(prev => !prev)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-colors ${
-                    showCovariance ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40' : 'text-slate-400 hover:text-white'
-                  }`}
-                  title="Toggle Covariance Ellipse"
-                >
-                  Covariance
-                </button>
-              </div>
-            </div>
+        {/* SVG B-Plane Plot */}
+        <div style={{ width: '100%', maxWidth: 560, aspectRatio: '1', background: 'rgba(2,6,23,0.9)', border: '1px solid rgba(34,211,238,0.25)', borderRadius: 16, overflow: 'hidden', position: 'relative' }}>
+          <svg viewBox="-300 -300 600 600" style={{ width: '100%', height: '100%' }}>
+            <defs>
+              <radialGradient id="hbrG" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stopColor="#ff0055" stopOpacity="0.35" />
+                <stop offset="100%" stopColor="#ff0055" stopOpacity="0" />
+              </radialGradient>
+              <radialGradient id="covG" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stopColor="#22d3ee" stopOpacity="0.2" />
+                <stop offset="100%" stopColor="#22d3ee" stopOpacity="0" />
+              </radialGradient>
+            </defs>
 
-            {/* Responsive High-Visibility SVG B-Plane Visualizer */}
-            <div className="w-full relative aspect-square max-w-[560px] max-h-[560px] bg-slate-950/90 border border-cyan-500/30 rounded-2xl shadow-2xl overflow-hidden backdrop-blur-2xl flex items-center justify-center">
-              <svg 
-                viewBox="-300 -300 600 600" 
-                className="w-full h-full"
-              >
-                <defs>
-                  {/* Glowing Gradients */}
-                  <radialGradient id="hbrGlow" cx="50%" cy="50%" r="50%">
-                    <stop offset="0%" stopColor="#ff0055" stopOpacity="0.35" />
-                    <stop offset="70%" stopColor="#ff0055" stopOpacity="0.15" />
-                    <stop offset="100%" stopColor="#ff0055" stopOpacity="0.0" />
-                  </radialGradient>
-                  <radialGradient id="covGlow" cx="50%" cy="50%" r="50%">
-                    <stop offset="0%" stopColor="#22d3ee" stopOpacity="0.25" />
-                    <stop offset="100%" stopColor="#22d3ee" stopOpacity="0.0" />
-                  </radialGradient>
-                  <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-                    <feGaussianBlur stdDeviation="3" result="blur" />
-                    <feComposite in="SourceGraphic" in2="blur" operator="over" />
-                  </filter>
-                </defs>
+            {/* Distance Rings */}
+            {[100, 250, 500, 1000, 2000].map(d => {
+              const r = d * sc;
+              if (r > 280) return null;
+              return (
+                <React.Fragment key={d}>
+                  <circle cx="0" cy="0" r={r} fill="none" stroke="rgba(34,211,238,0.1)" strokeWidth="1" strokeDasharray="4 4" />
+                  <text x={r + 4} y="-6" fill="rgba(34,211,238,0.4)" fontSize="10" fontFamily="monospace" fontWeight="bold">
+                    {d >= 1000 ? `${(d / 1000).toFixed(1)}km` : `${d}m`}
+                  </text>
+                </React.Fragment>
+              );
+            })}
 
-                {/* Radar Distance Grid Rings */}
-                {showRings && [100, 250, 500, 1000, 2000].map((dist) => {
-                  const r = dist * scale;
-                  if (r > 280) return null;
-                  return (
-                    <React.Fragment key={dist}>
-                      <circle
-                        cx="0" cy="0" r={r}
-                        fill="none"
-                        stroke="rgba(34, 211, 238, 0.12)"
-                        strokeWidth="1"
-                        strokeDasharray="4 4"
-                      />
-                      <text
-                        x={r + 4} y="-6"
-                        fill="rgba(34, 211, 238, 0.45)"
-                        fontSize="10"
-                        fontFamily="'JetBrains Mono', monospace"
-                        fontWeight="bold"
-                      >
-                        {dist >= 1000 ? `${(dist / 1000).toFixed(1)}km` : `${dist}m`}
-                      </text>
-                    </React.Fragment>
-                  );
-                })}
+            {/* Axes */}
+            <line x1="-280" y1="0" x2="280" y2="0" stroke="rgba(255,255,255,0.2)" strokeWidth="1.5" />
+            <line x1="0" y1="-280" x2="0" y2="280" stroke="rgba(255,255,255,0.2)" strokeWidth="1.5" />
+            <text x="230" y="-12" fill="#22d3ee" fontSize="11" fontFamily="monospace" fontWeight="bold">B·T</text>
+            <text x="8" y="-265" fill="#22d3ee" fontSize="11" fontFamily="monospace" fontWeight="bold">B·R</text>
 
-                {/* Coordinate Axes (B·T horizontal, B·R vertical) */}
-                <line x1="-280" y1="0" x2="280" y2="0" stroke="rgba(255, 255, 255, 0.25)" strokeWidth="1.5" />
-                <line x1="0" y1="-280" x2="0" y2="280" stroke="rgba(255, 255, 255, 0.25)" strokeWidth="1.5" />
-
-                {/* Axis Labels */}
-                <text x="250" y="-12" fill="#22d3ee" fontSize="12" fontFamily="monospace" fontWeight="bold">B·T (Along-Track)</text>
-                <text x="12" y="-260" fill="#22d3ee" fontSize="12" fontFamily="monospace" fontWeight="bold">B·R (Cross-Track)</text>
-
-                {/* Hard Body Radius (HBR) Danger Bubble at Origin (Primary Sat) */}
-                {bPlaneData && (
-                  <>
-                    <circle
-                      cx="0" cy="0"
-                      r={Math.max(bPlaneData.hbr * scale, 12)}
-                      fill="url(#hbrGlow)"
-                      stroke="#ff0055"
-                      strokeWidth="2"
-                      strokeDasharray="5 3"
-                    />
-                    <text
-                      x="0" y={Math.max(bPlaneData.hbr * scale, 12) + 16}
-                      textAnchor="middle"
-                      fill="#ff4d79"
-                      fontSize="10"
-                      fontFamily="monospace"
-                      fontWeight="bold"
-                    >
-                      HBR DANGER ZONE ({bPlaneData.hbr}m)
-                    </text>
-                  </>
-                )}
-
-                {/* 1-Sigma & 3-Sigma Covariance Uncertainty Ellipses */}
-                {bPlaneData && showCovariance && (
-                  <>
-                    {/* 3-Sigma Ellipse */}
-                    <ellipse
-                      cx={bPlaneData.bDotT * scale}
-                      cy={-bPlaneData.bDotR * scale}
-                      rx={bPlaneData.sigmaT * scale * 2.2}
-                      ry={bPlaneData.sigmaR * scale * 2.2}
-                      fill="none"
-                      stroke="rgba(34, 211, 238, 0.2)"
-                      strokeWidth="1"
-                      strokeDasharray="6 4"
-                      transform={`rotate(${bPlaneData.angleDeg}, ${bPlaneData.bDotT * scale}, ${-bPlaneData.bDotR * scale})`}
-                    />
-                    {/* 1-Sigma Ellipse */}
-                    <ellipse
-                      cx={bPlaneData.bDotT * scale}
-                      cy={-bPlaneData.bDotR * scale}
-                      rx={bPlaneData.sigmaT * scale}
-                      ry={bPlaneData.sigmaR * scale}
-                      fill="url(#covGlow)"
-                      stroke="#22d3ee"
-                      strokeWidth="1.5"
-                      strokeDasharray="4 2"
-                      transform={`rotate(${bPlaneData.angleDeg}, ${bPlaneData.bDotT * scale}, ${-bPlaneData.bDotR * scale})`}
-                    />
-                  </>
-                )}
-
-                {/* Miss Vector from Primary to Secondary */}
-                {bPlaneData && (
-                  <line
-                    x1="0" y1="0"
-                    x2={bPlaneData.bDotT * scale}
-                    y2={-bPlaneData.bDotR * scale}
-                    stroke="#22d3ee"
-                    strokeWidth="2"
-                    strokeDasharray="6 3"
-                  />
-                )}
-
-                {/* Secondary Object Target Marker */}
-                {bPlaneData && (
-                  <g transform={`translate(${bPlaneData.bDotT * scale}, ${-bPlaneData.bDotR * scale})`}>
-                    {/* Pulsing Radar Reticle */}
-                    <circle r="16" fill="none" stroke="#22d3ee" strokeWidth="1.5">
-                      <animate attributeName="r" values="12;22;12" dur="2s" repeatCount="indefinite" />
-                      <animate attributeName="opacity" values="1;0.2;1" dur="2s" repeatCount="indefinite" />
-                    </circle>
-                    <circle r="6" fill="#22d3ee" filter="url(#glow)" />
-                    <line x1="-12" y1="0" x2="12" y2="0" stroke="#22d3ee" strokeWidth="1.5" />
-                    <line x1="0" y1="-12" x2="0" y2="12" stroke="#22d3ee" strokeWidth="1.5" />
-                    
-                    {/* Floating Target Badge */}
-                    <rect x="14" y="-22" width="130" height="28" rx="6" fill="rgba(7,11,20,0.9)" stroke="#22d3ee" strokeWidth="1" />
-                    <text x="22" y="-12" fill="#22d3ee" fontSize="9" fontFamily="monospace" fontWeight="bold">
-                      SECONDARY TARGET
-                    </text>
-                    <text x="22" y="-2" fill="#ffffff" fontSize="9" fontFamily="monospace">
-                      MISS: {bPlaneData.bMag.toFixed(0)}m
-                    </text>
-                  </g>
-                )}
-
-                {/* Primary Object Center Crosshair */}
-                <circle cx="0" cy="0" r="5" fill="#ff0055" filter="url(#glow)" />
-                <line x1="-14" y1="0" x2="14" y2="0" stroke="#ff0055" strokeWidth="2" />
-                <line x1="0" y1="-14" x2="0" y2="14" stroke="#ff0055" strokeWidth="2" />
-                <text x="8" y="16" fill="#ff0055" fontSize="10" fontFamily="monospace" fontWeight="bold">PRIMARY (ORIGIN)</text>
-              </svg>
-
-              {/* Bottom In-Plot Legend */}
-              <div className="absolute bottom-3 left-3 bg-slate-950/80 border border-white/10 rounded-xl p-2.5 text-[11px] font-mono backdrop-blur-xl flex flex-col gap-1 shadow-lg">
-                <div className="flex items-center gap-2">
-                  <div className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_8px_#ff0055]"></div>
-                  <span className="text-slate-300">Primary Object</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee]"></div>
-                  <span className="text-slate-300">Secondary Object</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-0.5 border-t border-dashed border-cyan-400"></div>
-                  <span className="text-slate-300">Covariance (1-σ / 3-σ)</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Astrodynamics Metric Cards Grid (Responsive 2 to 4 cols) */}
-            {bPlaneData && (
-              <div className="w-full grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mt-5">
-                <div className="bg-slate-950/80 border border-white/10 rounded-xl p-3 text-center shadow-lg">
-                  <div className="text-[10px] text-slate-400 uppercase font-mono font-bold tracking-wider mb-1">B·T (ALONG-TRACK)</div>
-                  <div className="text-cyan-300 font-mono font-bold text-sm">{bPlaneData.bDotT >= 0 ? `+${bPlaneData.bDotT.toFixed(1)}` : bPlaneData.bDotT.toFixed(1)} m</div>
-                </div>
-
-                <div className="bg-slate-950/80 border border-white/10 rounded-xl p-3 text-center shadow-lg">
-                  <div className="text-[10px] text-slate-400 uppercase font-mono font-bold tracking-wider mb-1">B·R (CROSS-TRACK)</div>
-                  <div className="text-cyan-300 font-mono font-bold text-sm">{bPlaneData.bDotR >= 0 ? `+${bPlaneData.bDotR.toFixed(1)}` : bPlaneData.bDotR.toFixed(1)} m</div>
-                </div>
-
-                <div className="bg-slate-950/80 border border-white/10 rounded-xl p-3 text-center shadow-lg">
-                  <div className="text-[10px] text-slate-400 uppercase font-mono font-bold tracking-wider mb-1">|B| MISS DISTANCE</div>
-                  <div className="text-white font-mono font-bold text-sm">{bPlaneData.bMag.toFixed(1)} m</div>
-                </div>
-
-                <div className="bg-slate-950/80 border border-white/10 rounded-xl p-3 text-center shadow-lg">
-                  <div className="text-[10px] text-slate-400 uppercase font-mono font-bold tracking-wider mb-1">V_REL SPEED</div>
-                  <div className="text-amber-400 font-mono font-bold text-sm">{bPlaneData.vrel.toFixed(2)} km/s</div>
-                </div>
-
-                <div className="bg-slate-950/80 border border-white/10 rounded-xl p-3 text-center shadow-lg">
-                  <div className="text-[10px] text-slate-400 uppercase font-mono font-bold tracking-wider mb-1">ENCOUNTER ANGLE</div>
-                  <div className="text-emerald-400 font-mono font-bold text-sm">{bPlaneData.angleDeg}°</div>
-                </div>
-
-                <div className="bg-slate-950/80 border border-white/10 rounded-xl p-3 text-center shadow-lg">
-                  <div className="text-[10px] text-slate-400 uppercase font-mono font-bold tracking-wider mb-1">COLLISION PROB (Pc)</div>
-                  <div className={`font-mono font-bold text-sm ${bPlaneData.pc >= 1e-4 ? 'text-red-400' : 'text-cyan-300'}`}>
-                    {bPlaneData.pc.toExponential(2)}
-                  </div>
-                </div>
-              </div>
+            {/* HBR danger zone */}
+            {bp && (
+              <>
+                <circle cx="0" cy="0" r={Math.max(bp.hbr * sc, 12)} fill="url(#hbrG)" stroke="#ff0055" strokeWidth="2" strokeDasharray="5 3" />
+                <text x="0" y={Math.max(bp.hbr * sc, 12) + 16} textAnchor="middle" fill="#ff4d79" fontSize="10" fontFamily="monospace" fontWeight="bold">
+                  HBR ({bp.hbr}m)
+                </text>
+              </>
             )}
+
+            {/* Covariance ellipses */}
+            {bp && showCov && (
+              <>
+                <ellipse cx={bp.bT * sc} cy={-bp.bR * sc} rx={bp.sigT * sc * 2.2} ry={bp.sigR * sc * 2.2}
+                  fill="none" stroke="rgba(34,211,238,0.15)" strokeWidth="1" strokeDasharray="6 4"
+                  transform={`rotate(${bp.deg}, ${bp.bT * sc}, ${-bp.bR * sc})`} />
+                <ellipse cx={bp.bT * sc} cy={-bp.bR * sc} rx={bp.sigT * sc} ry={bp.sigR * sc}
+                  fill="url(#covG)" stroke="#22d3ee" strokeWidth="1.5" strokeDasharray="4 2"
+                  transform={`rotate(${bp.deg}, ${bp.bT * sc}, ${-bp.bR * sc})`} />
+              </>
+            )}
+
+            {/* Miss vector line */}
+            {bp && <line x1="0" y1="0" x2={bp.bT * sc} y2={-bp.bR * sc} stroke="#22d3ee" strokeWidth="2" strokeDasharray="6 3" />}
+
+            {/* Secondary target marker */}
+            {bp && (
+              <g transform={`translate(${bp.bT * sc}, ${-bp.bR * sc})`}>
+                <circle r="16" fill="none" stroke="#22d3ee" strokeWidth="1.5">
+                  <animate attributeName="r" values="12;22;12" dur="2s" repeatCount="indefinite" />
+                  <animate attributeName="opacity" values="1;0.2;1" dur="2s" repeatCount="indefinite" />
+                </circle>
+                <circle r="6" fill="#22d3ee" />
+                <line x1="-12" y1="0" x2="12" y2="0" stroke="#22d3ee" strokeWidth="1.5" />
+                <line x1="0" y1="-12" x2="0" y2="12" stroke="#22d3ee" strokeWidth="1.5" />
+                <rect x="16" y="-20" width="110" height="24" rx="5" fill="rgba(7,11,20,0.9)" stroke="#22d3ee" strokeWidth="1" />
+                <text x="22" y="-10" fill="#22d3ee" fontSize="9" fontFamily="monospace" fontWeight="bold">SECONDARY</text>
+                <text x="22" y="0" fill="white" fontSize="9" fontFamily="monospace">MISS: {bp.bMag.toFixed(0)}m</text>
+              </g>
+            )}
+
+            {/* Primary crosshair */}
+            <circle cx="0" cy="0" r="5" fill="#ff0055" />
+            <line x1="-14" y1="0" x2="14" y2="0" stroke="#ff0055" strokeWidth="2" />
+            <line x1="0" y1="-14" x2="0" y2="14" stroke="#ff0055" strokeWidth="2" />
+            <text x="10" y="16" fill="#ff0055" fontSize="10" fontFamily="monospace" fontWeight="bold">PRIMARY</text>
+          </svg>
+
+          {/* Legend overlay */}
+          <div style={{ position: 'absolute', bottom: 12, left: 12, background: 'rgba(2,6,23,0.85)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '8px 12px', fontSize: 11, fontFamily: 'monospace', display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ff0055', display: 'inline-block' }}></span>
+              <span style={{ color: '#cbd5e1' }}>Primary</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22d3ee', display: 'inline-block' }}></span>
+              <span style={{ color: '#cbd5e1' }}>Secondary</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Telemetry Cards */}
+        {bp && (
+          <div style={{ width: '100%', maxWidth: 600, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginTop: 20 }}>
+            {[
+              { label: 'B·T (ALONG)', value: `${bp.bT >= 0 ? '+' : ''}${bp.bT.toFixed(1)} m`, color: '#22d3ee' },
+              { label: 'B·R (CROSS)', value: `${bp.bR >= 0 ? '+' : ''}${bp.bR.toFixed(1)} m`, color: '#22d3ee' },
+              { label: '|B| MISS DIST', value: `${bp.bMag.toFixed(1)} m`, color: '#ffffff' },
+              { label: 'V_REL', value: `${bp.vrel.toFixed(2)} km/s`, color: '#fbbf24' },
+              { label: 'ANGLE', value: `${bp.deg}°`, color: '#34d399' },
+              { label: 'Pc', value: bp.pc.toExponential(2), color: bp.pc >= 1e-4 ? '#f87171' : '#22d3ee' },
+            ].map(card => (
+              <div key={card.label} style={{ background: 'rgba(2,6,23,0.8)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: '12px 8px', textAlign: 'center' }}>
+                <div style={{ fontSize: 10, color: '#64748b', fontFamily: 'monospace', fontWeight: 700, letterSpacing: 1, marginBottom: 6, textTransform: 'uppercase' }}>{card.label}</div>
+                <div style={{ fontSize: 14, fontFamily: 'monospace', fontWeight: 700, color: card.color }}>{card.value}</div>
+              </div>
+            ))}
           </div>
         )}
       </div>
     </div>
+  );
+}
+
+const ctrlBtnStyle = {
+  padding: '6px 12px',
+  background: 'rgba(255,255,255,0.06)',
+  border: '1px solid rgba(255,255,255,0.1)',
+  borderRadius: 8,
+  color: '#94a3b8',
+  cursor: 'pointer',
+  fontFamily: 'monospace',
+  fontSize: 12,
+  fontWeight: 'bold',
+};
+
+export default function BPlaneView(props) {
+  return (
+    <BPlaneErrorBoundary>
+      <BPlaneInner {...props} />
+    </BPlaneErrorBoundary>
   );
 }
