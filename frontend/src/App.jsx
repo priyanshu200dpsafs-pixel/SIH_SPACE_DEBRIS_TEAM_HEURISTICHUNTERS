@@ -1,3 +1,4 @@
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 import React, { useState, useEffect } from 'react';
 import { AlertTriangle, Crosshair, ChevronRight, ChevronLeft } from 'lucide-react';
 import TopNav from './components/TopNav';
@@ -25,7 +26,7 @@ export default function App() {
   const [isEngineerMode, setIsEngineerMode] = useState(false);
 
   useEffect(() => {
-    fetch('/api/v1/conjunctions?page=1&size=50')
+    fetch(API_BASE_URL + '/api/v1/conjunctions?page=1&size=50')
       .then(res => res.json())
       .then(data => {
         const items = data.items || [];

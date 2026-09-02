@@ -1,3 +1,4 @@
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 import React, { useEffect, useState } from 'react';
 import { CheckCircle, AlertTriangle, XCircle, Info } from 'lucide-react';
 
@@ -6,7 +7,7 @@ export default function ValidationLabView() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/v1/validation')
+    fetch(API_BASE_URL + '/api/v1/validation')
       .then(res => res.json())
       .then(data => {
         setReport(data);

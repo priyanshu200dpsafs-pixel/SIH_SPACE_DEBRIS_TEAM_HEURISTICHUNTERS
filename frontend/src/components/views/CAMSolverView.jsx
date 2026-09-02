@@ -1,3 +1,4 @@
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 import React, { useState, useEffect } from 'react';
 import { Wrench, Rocket, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
 
@@ -17,7 +18,7 @@ export default function CAMSolverView({ conjunction, conjunctions }) {
       return;
     }
 
-    fetch('/api/v1/conjunctions?page=1&size=50')
+    fetch(API_BASE_URL + '/api/v1/conjunctions?page=1&size=50')
       .then(r => r.json())
       .then(data => {
         const items = data.items || [];
@@ -72,7 +73,7 @@ export default function CAMSolverView({ conjunction, conjunctions }) {
     setResult(null);
 
     try {
-      const res = await fetch(`/api/v1/conjunctions/${activeConj.id}/cam`, {
+      const res = await fetch(`${API_BASE_URL}/api/v1/conjunctions/${activeConj.id}/cam`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

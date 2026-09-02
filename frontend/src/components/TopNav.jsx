@@ -1,3 +1,4 @@
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 import React, { useState, useEffect } from 'react';
 import { Globe, AlertTriangle, Activity, Play, MessageSquare, Clock, RefreshCw, Radar, Grid3x3, Target, Wrench, Sun, Sparkles } from 'lucide-react';
 import { clsx } from 'clsx';
@@ -23,7 +24,7 @@ export default function TopNav({ activeTab = '3d-radar', onTabChange, isEngineer
   const [countdownStr, setCountdownStr] = useState("");
 
   const fetchHealth = () => {
-    fetch('/api/v1/health')
+    fetch(API_BASE_URL + '/api/v1/health')
       .then(r => r.json())
       .then(data => setHealthData(data))
       .catch(() => {});

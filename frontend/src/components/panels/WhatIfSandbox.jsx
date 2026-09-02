@@ -1,3 +1,4 @@
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 import React, { useState } from 'react';
 import { TestTube, Crosshair, AlertTriangle, ArrowRight, Play, Loader2, CheckCircle, Save, ShieldAlert, Minimize, Grid } from 'lucide-react';
 import { clsx } from 'clsx';
@@ -38,7 +39,7 @@ export default function WhatIfSandbox({ conjunction, onClose }) {
         hours_before_tca: parseFloat(hoursBeforeTca)
       };
 
-      const res = await fetch(`/api/v1/what-if/conjunctions/${conjunction.id}/simulate`, {
+      const res = await fetch(`${API_BASE_URL}/api/v1/what-if/conjunctions/${conjunction.id}/simulate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -71,7 +72,7 @@ export default function WhatIfSandbox({ conjunction, onClose }) {
         resolution: 5
       };
 
-      const res = await fetch(`/api/v1/what-if/conjunctions/${conjunction.id}/robustness`, {
+      const res = await fetch(`${API_BASE_URL}/api/v1/what-if/conjunctions/${conjunction.id}/robustness`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)

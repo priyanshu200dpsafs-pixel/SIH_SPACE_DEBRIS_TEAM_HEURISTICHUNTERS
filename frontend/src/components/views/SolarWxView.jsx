@@ -1,3 +1,4 @@
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 import React, { useState, useEffect } from 'react';
 import { Sun, Wind, Activity, Gauge, AlertTriangle, RefreshCw } from 'lucide-react';
 
@@ -11,7 +12,7 @@ export default function SolarWxView() {
 
   const fetchWeather = () => {
     setLoading(true);
-    fetch('/api/v1/weather')
+    fetch(API_BASE_URL + '/api/v1/weather')
       .then(r => r.json())
       .then(data => {
         setWeatherData(data);

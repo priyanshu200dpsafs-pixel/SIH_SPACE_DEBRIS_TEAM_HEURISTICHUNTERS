@@ -1,3 +1,4 @@
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 import React, { useState, useEffect } from 'react';
 import { Activity, ShieldCheck, Database, Server, GitMerge, Settings, Clock, CheckCircle, AlertTriangle, Info } from 'lucide-react';
 import { clsx } from 'clsx';
@@ -15,7 +16,7 @@ export default function SystemTrustView({ onClose }) {
   useEffect(() => {
     const fetchTrustMetrics = async () => {
       try {
-        const res = await fetch('/api/v1/system/trust');
+        const res = await fetch(API_BASE_URL + '/api/v1/system/trust');
         if (!res.ok) throw new Error('Failed to fetch telemetry');
         const data = await res.json();
         setMetrics(data);

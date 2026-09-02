@@ -1,3 +1,4 @@
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, Loader2, Sparkles } from 'lucide-react';
 import { clsx } from 'clsx';
@@ -32,7 +33,7 @@ export default function CopilotPanel({ sessionId }) {
     setIsLoading(true);
 
     try {
-      const response = await fetch('/api/v1/copilot/query', {
+      const response = await fetch(API_BASE_URL + '/api/v1/copilot/query', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

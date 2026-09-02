@@ -1,3 +1,4 @@
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 import React, { useRef, useEffect, useState, useMemo } from 'react';
 import Globe from 'react-globe.gl';
 import * as satellite from 'satellite.js';
@@ -65,7 +66,7 @@ export default function CinematicEarth({ selectedConjunction, onSelectSatellite,
 
   // 1. Fetch Conjunctions
   useEffect(() => {
-    fetch('/api/v1/conjunctions?page=1&size=50')
+    fetch(API_BASE_URL + '/api/v1/conjunctions?page=1&size=50')
       .then(r => r.json())
       .then(data => {
         const names = new Set();
@@ -81,7 +82,7 @@ export default function CinematicEarth({ selectedConjunction, onSelectSatellite,
 
   // 2. Fetch TLEs
   useEffect(() => {
-    fetch('/api/v1/globe-data')
+    fetch(API_BASE_URL + '/api/v1/globe-data')
       .then(r => r.json())
       .then(data => {
         const parsed = data.items.map(item => {

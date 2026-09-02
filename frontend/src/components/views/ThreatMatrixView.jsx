@@ -1,3 +1,4 @@
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 import React, { useState, useEffect } from 'react';
 import { AlertTriangle, ArrowUpDown, ChevronUp, ChevronDown } from 'lucide-react';
 
@@ -8,7 +9,7 @@ export default function ThreatMatrixView({ conjunctions, onSelectPair }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/v1/conjunctions?page=1&size=100')
+    fetch(API_BASE_URL + '/api/v1/conjunctions?page=1&size=100')
       .then(r => r.json())
       .then(data => {
         setAllConjunctions(data.items || []);

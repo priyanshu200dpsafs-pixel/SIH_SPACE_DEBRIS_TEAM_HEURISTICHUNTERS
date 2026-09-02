@@ -1,3 +1,4 @@
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 import React, { useState, useEffect, useMemo } from 'react';
 
 // Hardcoded fallback data so the view ALWAYS has something to show
@@ -75,7 +76,7 @@ function BPlaneInner({ conjunction, conjunctions }) {
       return;
     }
 
-    fetch('/api/v1/conjunctions?page=1&size=50')
+    fetch(API_BASE_URL + '/api/v1/conjunctions?page=1&size=50')
       .then(r => r.json())
       .then(data => {
         const items = data.items || [];

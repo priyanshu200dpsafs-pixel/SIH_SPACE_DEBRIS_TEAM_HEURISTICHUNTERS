@@ -1,3 +1,4 @@
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 import React, { useState, useEffect } from 'react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine
@@ -20,7 +21,7 @@ export default function RiskEvolutionChart({ pairId, id1, id2, currentTca }) {
       try {
         setLoading(true);
         // We use the new history endpoint based on exact pair and approx TCA window
-        const res = await fetch(`/api/v1/conjunctions/${id1}/${id2}/history?tca=${encodeURIComponent(currentTca)}`);
+        const res = await fetch(`${API_BASE_URL}/api/v1/conjunctions/${id1}/${id2}/history?tca=${encodeURIComponent(currentTca)}`);
         if (!res.ok) throw new Error('Failed to fetch event history');
         
         const data = await res.json();
