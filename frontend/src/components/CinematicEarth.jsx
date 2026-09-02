@@ -8,7 +8,7 @@ import SatellitePanel from './panels/SatellitePanel';
 const GLOBE_RADIUS = 100;
 const MAX_SWARM_SATS = 30000;
 
-export default function CinematicEarth({ selectedConjunction }) {
+export default function CinematicEarth({ selectedConjunction, onSelectSatellite, onPanelStateChange }) {
   const globeEl = useRef();
   
   // Data Refs
@@ -42,6 +42,13 @@ export default function CinematicEarth({ selectedConjunction }) {
     selectedTags: [],
     debrisFilter: 'Show'
   });
+
+  // Notify parent component when satellite panel state changes
+  useEffect(() => {
+    if (onPanelStateChange) {
+      onPanelStateChange(isPanelOpen);
+    }
+  }, [isPanelOpen, onPanelStateChange]);
   
   // Search & Lock State
   const [searchQuery, setSearchQuery] = useState('');
@@ -134,48 +141,53 @@ export default function CinematicEarth({ selectedConjunction }) {
 
     const id1 = selectedConjunction.norad_id_1?.toString();
     const id2 = selectedConjunction.norad_id_2?.toString();
-    const name1 = selectedConjunction.object_1?.name;
-    const name2 = selectedConjunction.object_2?.name;
+    const name1 = selectedConjunction.object_1?.name || `NORAD-${id1}`;
+    const name2 = selectedConjunction.object_2?.name || `NORAD-${id2}`;
 
-    // Search in allSatsRef.current
-    let targetSat = allSatsRef.current.find(s => 
-      (id1 && s.norad_id?.toString() === id1) ||
-      (id2 && s.norad_id?.toString() === id2) ||
-      (name1 && s.name?.toUpperCase() === name1?.toUpperCase()) ||
-      (name2 && s.name?.toUpperCase() === name2?.toUpperCase())
-    );
+    let targetSat1 = allSatsRef.current.find(s => s.norad_id?.toString() === id1 || s.name === name1);
+    let targetSat2 = allSatsRef.current.find(s => s.norad_id?.toString() === id2 || s.name === name2);
 
-    // If not found in allSatsRef, construct it from conjunction TLE data if available
-    if (!targetSat && selectedConjunction.object_1?.tle_line1 && selectedConjunction.object_1?.tle_line2) {
+    if (!targetSat1 && selectedConjunction.object_1?.tle_line1 && selectedConjunction.object_1?.tle_line2) {
       try {
         const satrec = satellite.twoline2satrec(selectedConjunction.object_1.tle_line1, selectedConjunction.object_1.tle_line2);
-        targetSat = {
-          name: name1 || `NORAD-${id1}`,
-          norad_id: id1 || 'UNKNOWN',
-          satrec,
-          lat: 0, lng: 0, alt: 0.1,
-          isHighRisk: true
-        };
+        targetSat1 = { name: name1, norad_id: id1 || 'UNKNOWN', satrec, lat: 0, lng: 0, alt: 0.1, isHighRisk: true };
+      } catch (e) {}
+    }
+    if (!targetSat2 && selectedConjunction.object_2?.tle_line1 && selectedConjunction.object_2?.tle_line2) {
+      try {
+        const satrec = satellite.twoline2satrec(selectedConjunction.object_2.tle_line1, selectedConjunction.object_2.tle_line2);
+        targetSat2 = { name: name2, norad_id: id2 || 'UNKNOWN', satrec, lat: 0, lng: 0, alt: 0.1, isHighRisk: true };
       } catch (e) {}
     }
 
-    if (targetSat) {
-      const now = new Date();
-      const gmst = satellite.gstime(now);
+    const now = new Date();
+    const gmst = satellite.gstime(now);
+
+    const updateSatPos = (sat, role, color) => {
+      if (!sat) return null;
       try {
-        const pv = satellite.propagate(targetSat.satrec, now);
+        const pv = satellite.propagate(sat.satrec, now);
         if (pv.position) {
           const gd = satellite.eciToGeodetic(pv.position, gmst);
-          targetSat.lat = satellite.degreesLat(gd.latitude);
-          targetSat.lng = satellite.degreesLong(gd.longitude);
-          targetSat.alt = Math.max(0.04, gd.height / 6371.0);
-          targetSat.eci = pv.position;
+          sat.lat = satellite.degreesLat(gd.latitude);
+          sat.lng = satellite.degreesLong(gd.longitude);
+          sat.alt = Math.max(0.04, gd.height / 6371.0);
+          sat.eci = pv.position;
+          sat.role = role;
+          sat.color = color;
+          return sat;
         }
       } catch (e) {}
+      return null;
+    };
 
-      lockOnSatellite(targetSat);
+    const objA = updateSatPos(targetSat1, 'A', '#22d3ee'); // Cyan
+    const objB = updateSatPos(targetSat2, 'B', '#f59e0b'); // Amber
+
+    if (objA) {
+      lockOnSatellite(objA, objB);
     }
-  }, [selectedConjunction?.id, selectedConjunction?.norad_id_1, selectedConjunction?.norad_id_2, dataReady]);
+  }, [selectedConjunction?.id, dataReady]);
 
   // Search Logic
   useEffect(() => {
@@ -190,24 +202,37 @@ export default function CinematicEarth({ selectedConjunction }) {
     setSearchResults(matches);
   }, [searchQuery]);
 
-  const lockOnSatellite = (sat) => {
-    if (!sat) return;
-    setLockedSatellite(sat);
-    setIsPanelOpen(true);
+  const lockOnSatellite = (satA, satB = null) => {
+    if (!satA) return;
+    setLockedSatellite(satA); // For primary camera focus
+    
+    if (satB) {
+      // Conjunction pair selected: hide the individual satellite panel
+      setIsPanelOpen(false);
+    } else {
+      // Single satellite selected: show the satellite panel and notify parent
+      setIsPanelOpen(true);
+      if (onSelectSatellite) {
+        onSelectSatellite(satA);
+      }
+    }
+
     if (activePanelTab === 'filters') {
       setActivePanelTab('info');
     }
     setSearchQuery('');
     setIsDropdownOpen(false);
     
-    // Instantly set the HTML reticle data on this satellite
-    setHtmlElementsData([sat]);
+    // Set HTML reticle data for both objects
+    const elements = [satA];
+    if (satB) elements.push(satB);
+    setHtmlElementsData(elements);
 
     if (globeEl.current) {
       globeEl.current.controls().autoRotate = false;
-      // Close-up cinematic zoom on the satellite
-      const cameraAlt = Math.max(sat.alt + 0.8, 1.6);
-      globeEl.current.pointOfView({ lat: sat.lat, lng: sat.lng, altitude: cameraAlt }, 1400);
+      // Close-up cinematic zoom on the primary satellite
+      const cameraAlt = Math.max(satA.alt + 0.8, 1.6);
+      globeEl.current.pointOfView({ lat: satA.lat, lng: satA.lng, altitude: cameraAlt }, 1400);
     }
   };
 
@@ -568,7 +593,7 @@ export default function CinematicEarth({ selectedConjunction }) {
     let downPos = { x: 0, y: 0 };
     let lastPos = { x: 0, y: 0 };
     const raycaster = new THREE.Raycaster();
-    raycaster.params.Points.threshold = 4.0;
+    raycaster.params.Points.threshold = 8.0;
 
     const onPointerDown = (e) => {
       // Don't intercept clicks on UI buttons, inputs, panels or navigation
@@ -586,7 +611,6 @@ export default function CinematicEarth({ selectedConjunction }) {
 
     const onPointerMove = (e) => {
       if (isDragging) {
-        document.body.style.cursor = 'grabbing';
         const dx = e.clientX - lastPos.x;
         const dy = e.clientY - lastPos.y;
         lastPos = { x: e.clientX, y: e.clientY };
@@ -618,19 +642,26 @@ export default function CinematicEarth({ selectedConjunction }) {
         return;
       }
 
-      // Satellite Hover Raycasting
-      if (hoveredThreatRef.current) {
-        setHoveredSat(hoveredThreatRef.current);
-        document.body.style.cursor = 'pointer';
-        return;
-      }
-
       if (!globeEl.current) return;
       const renderer = globeEl.current.renderer();
       const camera = globeEl.current.camera();
-      if (!renderer || !camera || !swarmPointsRef.current) return;
+      if (!renderer || !camera) return;
 
       const canvas = renderer.domElement;
+
+      if (e.target !== canvas) {
+        return;
+      }
+
+      // Satellite Hover Raycasting
+      if (hoveredThreatRef.current) {
+        setHoveredSat(hoveredThreatRef.current);
+        canvas.style.cursor = 'pointer';
+        return;
+      }
+
+      if (!swarmPointsRef.current) return;
+
       const rect = canvas.getBoundingClientRect();
       const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       const y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
@@ -643,23 +674,27 @@ export default function CinematicEarth({ selectedConjunction }) {
         const sat = swarmSatsRef.current[index];
         if (sat) {
           setHoveredSat(sat);
-          document.body.style.cursor = 'pointer';
+          canvas.style.cursor = 'pointer';
           return;
         }
       }
       
       setHoveredSat(null);
-      document.body.style.cursor = 'grab';
+      canvas.style.cursor = 'grab';
     };
 
     const onPointerUp = (e) => {
       if (isDragging) {
         isDragging = false;
+        document.body.style.cursor = ''; // Release global grab cursor
         const dist = Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y);
         if (dist < 5 && hoveredSatRef.current) {
           lockOnSatellite(hoveredSatRef.current);
         }
-        document.body.style.cursor = hoveredSatRef.current ? 'pointer' : 'grab';
+        
+        if (globeEl.current && globeEl.current.renderer()) {
+           globeEl.current.renderer().domElement.style.cursor = hoveredSatRef.current ? 'pointer' : 'grab';
+        }
       }
     };
 
@@ -681,14 +716,16 @@ export default function CinematicEarth({ selectedConjunction }) {
     window.addEventListener('pointerup', onPointerUp);
     window.addEventListener('wheel', onWheel, { passive: true });
     
-    document.body.style.cursor = 'grab';
+    if (globeEl.current && globeEl.current.renderer()) {
+       globeEl.current.renderer().domElement.style.cursor = 'grab';
+    }
 
     return () => {
       window.removeEventListener('pointerdown', onPointerDown);
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('wheel', onWheel);
-      document.body.style.cursor = 'default';
+      document.body.style.cursor = '';
     };
   }, [autoRotate]);
 
@@ -748,13 +785,13 @@ export default function CinematicEarth({ selectedConjunction }) {
       const circleTexture = new THREE.CanvasTexture(canvas);
 
       const material = new THREE.PointsMaterial({
-        color: 0xffffff,
-        size: 3.5,
+        color: 0xffffff, // White color for catalog objects
+        size: 2.5,       
         map: circleTexture,
         transparent: true,
-        opacity: 0.9,
+        opacity: 0.85,   // More visible
         sizeAttenuation: false,
-        alphaTest: 0.5
+        alphaTest: 0.05
       });
       
       // CRITICAL FIX: The raycaster needs a valid bounding sphere to process intersections!
@@ -940,7 +977,7 @@ export default function CinematicEarth({ selectedConjunction }) {
         height={dimensions.height}
         globeImageUrl={`//unpkg.com/three-globe/example/img/earth-${earthTheme}.jpg`}
         bumpImageUrl="//unpkg.com/three-globe/example/img/earth-topology.png"
-        backgroundImageUrl="//unpkg.com/three-globe/example/img/night-sky.png"
+        backgroundColor="rgba(0,0,0,0)"
         atmosphereColor="#00d4ff"
         atmosphereAltitude={0.25}
         
@@ -966,6 +1003,9 @@ export default function CinematicEarth({ selectedConjunction }) {
             document.body.style.cursor = 'pointer';
           }
         }}
+        onObjectClick={(obj) => {
+          if (obj) lockOnSatellite(obj);
+        }}
         
         ringsData={ringsData}
         ringLat="lat"
@@ -987,26 +1027,32 @@ export default function CinematicEarth({ selectedConjunction }) {
           const el = document.createElement('div');
           el.style.pointerEvents = 'none';
           const altKm = d.alt ? (d.alt * 6371).toFixed(0) : 'LEO';
+          
+          const primaryColor = d.color || '#22d3ee';
+          const glowColor = d.color ? d.color : '#22d3ee';
+          const coreColor = d.role === 'B' ? '#fbbf24' : '#ff0055';
+          const prefix = d.role ? `OBJ ${d.role}` : 'LOCKED';
+
           el.innerHTML = `
             <div style="transform: translate(-50%, -50%); position: relative; width: 100px; height: 100px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
               <!-- Target Name & Altitude Badge Above Satellite -->
-              <div style="position: absolute; bottom: 80px; background: rgba(7, 11, 20, 0.95); border: 1.5px solid #22d3ee; color: #22d3ee; font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: bold; padding: 3px 8px; border-radius: 6px; white-space: nowrap; box-shadow: 0 0 16px rgba(34, 211, 238, 0.6); text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center; gap: 4px;">
-                <span style="color: #ff0055;">⌖</span> ${d.name || 'LOCKED TARGET'} <span style="color: #94a3b8; font-size: 9px;">(${altKm} km)</span>
+              <div style="position: absolute; bottom: 80px; background: rgba(7, 11, 20, 0.95); border: 1.5px solid ${primaryColor}; color: ${primaryColor}; font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: bold; padding: 3px 8px; border-radius: 6px; white-space: nowrap; box-shadow: 0 0 16px ${glowColor}66; text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center; gap: 4px;">
+                <span style="color: ${coreColor};">⌖</span> ${prefix}: ${d.name} <span style="color: #94a3b8; font-size: 9px;">(${altKm} km)</span>
               </div>
               
               <!-- Spinning Neon Outer Reticle -->
-              <svg width="84" height="84" viewBox="0 0 40 40" style="position: absolute; animation: reticleSpin 6s linear infinite; transform-origin: center; filter: drop-shadow(0 0 10px #22d3ee);">
-                <circle cx="20" cy="20" r="17" fill="none" stroke="#22d3ee" stroke-width="1.2" stroke-dasharray="4 3"/>
-                <circle cx="20" cy="20" r="11" fill="none" stroke="rgba(34,211,238,0.5)" stroke-width="0.8"/>
+              <svg width="84" height="84" viewBox="0 0 40 40" style="position: absolute; animation: reticleSpin 6s linear infinite; transform-origin: center; filter: drop-shadow(0 0 10px ${primaryColor});">
+                <circle cx="20" cy="20" r="17" fill="none" stroke="${primaryColor}" stroke-width="1.2" stroke-dasharray="4 3"/>
+                <circle cx="20" cy="20" r="11" fill="none" stroke="${primaryColor}80" stroke-width="0.8"/>
               </svg>
               
               <!-- Fixed Target Crosshairs & Red Tracking Core -->
               <svg width="84" height="84" viewBox="0 0 40 40" style="position: absolute;">
-                <line x1="20" y1="1" x2="20" y2="8" stroke="#22d3ee" stroke-width="2"/>
-                <line x1="20" y1="32" x2="20" y2="39" stroke="#22d3ee" stroke-width="2"/>
-                <line x1="1" y1="20" x2="8" y2="20" stroke="#22d3ee" stroke-width="2"/>
-                <line x1="32" y1="20" x2="39" y2="20" stroke="#22d3ee" stroke-width="2"/>
-                <circle cx="20" cy="20" r="3.5" fill="#ff0055">
+                <line x1="20" y1="1" x2="20" y2="8" stroke="${primaryColor}" stroke-width="2"/>
+                <line x1="20" y1="32" x2="20" y2="39" stroke="${primaryColor}" stroke-width="2"/>
+                <line x1="1" y1="20" x2="8" y2="20" stroke="${primaryColor}" stroke-width="2"/>
+                <line x1="32" y1="20" x2="39" y2="20" stroke="${primaryColor}" stroke-width="2"/>
+                <circle cx="20" cy="20" r="3.5" fill="${coreColor}">
                   <animate attributeName="r" values="3;4.5;3" dur="1.2s" repeatCount="indefinite"/>
                   <animate attributeName="opacity" values="1;0.6;1" dur="1.2s" repeatCount="indefinite"/>
                 </circle>
@@ -1033,6 +1079,29 @@ export default function CinematicEarth({ selectedConjunction }) {
           }}
         />
       )}
+
+      {/* DOT LEGEND */}
+      <div className="absolute bottom-4 left-4 bg-[#030712]/80 backdrop-blur-md border border-white/10 rounded-lg p-3 pointer-events-none shadow-xl flex flex-col gap-2 z-20">
+        <h4 className="text-[10px] uppercase text-slate-400 font-bold tracking-wider mb-1">ORBITAL ENVIRONMENT</h4>
+        <div className="flex items-center gap-2 text-xs text-slate-300">
+          <div className="w-2 h-2 rounded-full bg-slate-500 opacity-50 shadow-[0_0_4px_rgba(100,116,139,0.5)]"></div>
+          <span>BACKGROUND CATALOG</span>
+        </div>
+        <div className="flex items-center gap-2 text-xs text-slate-300">
+          <div className="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)]"></div>
+          <span>PRIMARY OBJECT (A)</span>
+        </div>
+        <div className="flex items-center gap-2 text-xs text-slate-300">
+          <div className="w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.8)]"></div>
+          <span>SECONDARY OBJECT (B)</span>
+        </div>
+        <div className="flex items-center gap-2 text-xs text-slate-300">
+          <div className="w-3 h-3 border border-red-500 rounded-full flex items-center justify-center">
+            <div className="w-1 h-1 rounded-full bg-red-500 animate-pulse"></div>
+          </div>
+          <span>TCA MARKER</span>
+        </div>
+      </div>
     </div>
   );
 }

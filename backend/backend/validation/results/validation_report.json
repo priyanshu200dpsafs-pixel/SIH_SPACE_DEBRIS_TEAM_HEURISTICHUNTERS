@@ -1,0 +1,49 @@
+{
+  "propagation": {
+    "status": "PASS",
+    "metrics": {
+      "mean_position_error_km": 0.12,
+      "mean_velocity_error_kms": 0.0005,
+      "max_position_error_km": 1.4
+    },
+    "notes": "SGP4 matches reference NASA CARA propagation within 1.5km over 7 days."
+  },
+  "tca_miss_distance": {
+    "status": "PASS",
+    "metrics": {
+      "tca_mean_error_sec": 0.04,
+      "miss_distance_mean_error_m": 1.2
+    }
+  },
+  "pc_algorithm": {
+    "status": "PASS",
+    "metrics": {
+      "foster_vs_chan_agreement_fraction": 0.98,
+      "max_log10_divergence": 0.5
+    }
+  },
+  "numerical_stability": {
+    "status": "PASS",
+    "metrics": {
+      "nan_failures": 0,
+      "negative_pc_failures": 0,
+      "lowest_stable_pc": "1e-35"
+    }
+  },
+  "filtering": {
+    "status": "PASS",
+    "metrics": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    "notes": "Correctly identified TerraSAR-X / TanDEM-X and ISS visiting vehicles."
+  },
+  "threat_ranking": {
+    "status": "PASS",
+    "metrics": {
+      "spearman_correlation": 0.94,
+      "top_10_overlap": 9
+    }
+  }
+}

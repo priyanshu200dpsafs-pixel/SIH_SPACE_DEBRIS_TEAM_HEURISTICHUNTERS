@@ -1,0 +1,2 @@
+case_id,epoch,object_A,object_B,ARES_TCA,REF_TCA,ARES_MISS,REF_MISS,ARES_PC,REF_PC,NOTES
+CASE_01_LEO,2026-08-25T12:00:00Z,NORAD-25544,NORAD-12345,N/A,N/A,N/A,N/A,0.00154,N/A,No reference data available to complete test

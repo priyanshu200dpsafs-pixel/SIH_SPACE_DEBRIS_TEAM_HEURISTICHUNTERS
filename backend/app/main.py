@@ -2,7 +2,7 @@ from fastapi import FastAPI
 import logging
 from app.core.config import settings
 from app.api.middleware import setup_middlewares
-from app.api.routes import health, objects, conjunctions, admin, copilot, stats, globe, weather, whatif, system
+from app.api.routes import health, objects, conjunctions, admin, copilot, stats, globe, weather, whatif, system, validation
 from app.jobs.refresh_pipeline import setup_scheduler
 
 # Configure basic logging
@@ -32,6 +32,7 @@ app.include_router(globe.router, prefix=f"{settings.API_V1_STR}/globe-data", tag
 app.include_router(weather.router, prefix=f"{settings.API_V1_STR}/weather", tags=["Weather"])
 app.include_router(whatif.router, prefix=f"{settings.API_V1_STR}/what-if", tags=["WhatIf"])
 app.include_router(system.router, prefix=f"{settings.API_V1_STR}/system", tags=["System Trust"])
+app.include_router(validation.router, prefix=f"{settings.API_V1_STR}/validation", tags=["Validation"])
 
 from app.db.database import engine, Base
 
