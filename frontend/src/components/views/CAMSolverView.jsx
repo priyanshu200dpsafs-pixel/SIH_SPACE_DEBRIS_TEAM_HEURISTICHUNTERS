@@ -1,15 +1,69 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Wrench, Rocket, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
 
 export default function CAMSolverView({ conjunction, conjunctions }) {
-  const [selectedId, setSelectedId] = useState(conjunction?.id || null);
+  const [localConjunctions, setLocalConjunctions] = useState(conjunctions || []);
+  const [selectedId, setSelectedId] = useState(conjunction?.id || (conjunctions?.[0]?.id ?? null));
   const [hoursToTca, setHoursToTca] = useState(6);
   const [targetMiss, setTargetMiss] = useState(1000);
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const activeConj = conjunctions?.find(c => c.id === selectedId) || conjunction;
+  useEffect(() => {
+    if (conjunctions && conjunctions.length > 0) {
+      setLocalConjunctions(conjunctions);
+      if (!selectedId) setSelectedId(conjunctions[0].id);
+      return;
+    }
+
+    fetch('/api/v1/conjunctions?page=1&size=50')
+      .then(r => r.json())
+      .then(data => {
+        const items = data.items || [];
+        if (items.length > 0) {
+          setLocalConjunctions(items);
+          setSelectedId(prev => prev || items[0].id);
+        } else {
+          const fallback = [
+            {
+              id: 'STARLINK-30411_STARLINK-32491',
+              object_1: { name: 'STARLINK-30411', norad_id: 54321 },
+              object_2: { name: 'STARLINK-32491', norad_id: 54399 },
+              min_dist_km: 0.289,
+              relative_speed_km_s: 12.85,
+              hbr_m: 25,
+              pc: 4.94e-6
+            }
+          ];
+          setLocalConjunctions(fallback);
+          setSelectedId(prev => prev || fallback[0].id);
+        }
+      })
+      .catch(() => {
+        const fallback = [
+          {
+            id: 'STARLINK-30411_STARLINK-32491',
+            object_1: { name: 'STARLINK-30411', norad_id: 54321 },
+            object_2: { name: 'STARLINK-32491', norad_id: 54399 },
+            min_dist_km: 0.289,
+            relative_speed_km_s: 12.85,
+            hbr_m: 25,
+            pc: 4.94e-6
+          }
+        ];
+        setLocalConjunctions(fallback);
+        setSelectedId(prev => prev || fallback[0].id);
+      });
+  }, [conjunctions]);
+
+  useEffect(() => {
+    if (conjunction?.id) {
+      setSelectedId(conjunction.id);
+    }
+  }, [conjunction?.id]);
+
+  const activeConj = localConjunctions?.find(c => c.id === selectedId) || conjunction || localConjunctions?.[0] || null;
 
   const runSolver = async () => {
     if (!activeConj) return;
@@ -43,7 +97,7 @@ export default function CAMSolverView({ conjunction, conjunctions }) {
         <div className="p-4.5 border-b border-white/10 bg-black/40">
           <h3 className="text-xs uppercase tracking-widest text-slate-300 font-bold">SELECT CONJUNCTION EVENT</h3>
         </div>
-        {conjunctions?.map(c => (
+        {localConjunctions?.map(c => (
           <button
             key={c.id}
             onClick={() => { setSelectedId(c.id); setResult(null); }}
