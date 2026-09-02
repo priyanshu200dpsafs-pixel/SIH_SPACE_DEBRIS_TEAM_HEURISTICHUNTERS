@@ -363,56 +363,63 @@ export default function CinematicEarth({ selectedConjunction }) {
       };
 
       if (swarmPointsRef.current && swarmSatsRef.current.length > 0) {
-        const positions = swarmPointsRef.current.geometry.attributes.position.array;
-        let idx = 0;
-        swarmSatsRef.current.forEach(sat => {
-          if (idx >= positions.length) return;
+        const now = Date.now();
+        // PERFORMANCE FIX: Throttle 16,000+ background swarm propagations to once every 3.5 seconds
+        // LEO satellites take 90+ minutes to orbit; 3.5s updates save 90% CPU and eliminate UI freezing
+        if (!swarmPointsRef.current.lastSwarmUpdate || now - swarmPointsRef.current.lastSwarmUpdate > 3500) {
+          swarmPointsRef.current.lastSwarmUpdate = now;
+          
+          const positions = swarmPointsRef.current.geometry.attributes.position.array;
+          let idx = 0;
+          swarmSatsRef.current.forEach(sat => {
+            if (idx >= positions.length) return;
 
-          // Check if satellite matches current filters
-          if (!matchesFilter(sat)) {
-            positions[idx++] = 0;
-            positions[idx++] = 0;
-            positions[idx++] = 0;
-            return;
-          }
+            // Check if satellite matches current filters
+            if (!matchesFilter(sat)) {
+              positions[idx++] = 0;
+              positions[idx++] = 0;
+              positions[idx++] = 0;
+              return;
+            }
 
-          try {
-            const pos = satellite.propagate(sat.satrec, date).position;
-            if (pos) {
-              const gd = satellite.eciToGeodetic(pos, gmst);
-              const lat = satellite.degreesLat(gd.latitude);
-              const lng = satellite.degreesLong(gd.longitude);
-              const alt = gd.height / 6371.0;
-              
-              const phi = (90 - lat) * (Math.PI / 180);
-              const theta = (90 - lng) * (Math.PI / 180);
-              const r = GLOBE_RADIUS * (1 + alt);
-              
-              positions[idx++] = r * Math.sin(phi) * Math.cos(theta);
-              positions[idx++] = r * Math.cos(phi);
-              positions[idx++] = r * Math.sin(phi) * Math.sin(theta);
-              
-              // Cache data for tooltip
-              sat.lat = lat;
-              sat.lng = lng;
-              sat.alt = alt;
-              sat.velocity = Math.sqrt(Math.pow(pos.x, 2) + Math.pow(pos.y, 2) + Math.pow(pos.z, 2)) || 0;
-            } else {
+            try {
+              const pos = satellite.propagate(sat.satrec, date).position;
+              if (pos) {
+                const gd = satellite.eciToGeodetic(pos, gmst);
+                const lat = satellite.degreesLat(gd.latitude);
+                const lng = satellite.degreesLong(gd.longitude);
+                const alt = gd.height / 6371.0;
+                
+                const phi = (90 - lat) * (Math.PI / 180);
+                const theta = (90 - lng) * (Math.PI / 180);
+                const r = GLOBE_RADIUS * (1 + alt);
+                
+                positions[idx++] = r * Math.sin(phi) * Math.cos(theta);
+                positions[idx++] = r * Math.cos(phi);
+                positions[idx++] = r * Math.sin(phi) * Math.sin(theta);
+                
+                // Cache data for tooltip
+                sat.lat = lat;
+                sat.lng = lng;
+                sat.alt = alt;
+                sat.velocity = Math.sqrt(Math.pow(pos.x, 2) + Math.pow(pos.y, 2) + Math.pow(pos.z, 2)) || 0;
+              } else {
+                positions[idx++] = 0;
+                positions[idx++] = 0;
+                positions[idx++] = 0;
+              }
+            } catch(e) {
               positions[idx++] = 0;
               positions[idx++] = 0;
               positions[idx++] = 0;
             }
-          } catch(e) {
-            positions[idx++] = 0;
-            positions[idx++] = 0;
-            positions[idx++] = 0;
+          });
+          
+          for (let i = idx; i < positions.length; i++) {
+            positions[i] = 0;
           }
-        });
-        
-        for (let i = idx; i < positions.length; i++) {
-          positions[i] = 0;
+          swarmPointsRef.current.geometry.attributes.position.needsUpdate = true;
         }
-        swarmPointsRef.current.geometry.attributes.position.needsUpdate = true;
       }
 
       if (needsThreatUpdate) {
